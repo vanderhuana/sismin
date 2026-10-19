@@ -87,18 +87,6 @@ npm install
 npm run dev
 ```
 
-## 🔐 Credenciales de Prueba
-
-Una vez ejecutado el seed, puedes usar:
-
-- **Administrador:** 
-  - Usuario: `admin`
-  - Contraseña: `admin123`
-
-- **Operador:** 
-  - Usuario: `operador`  
-  - Contraseña: `moderado123`
-
 ## 🎯 Funcionalidades Implementadas
 
 ### ✅ Completadas
