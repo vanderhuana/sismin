@@ -1,0 +1,75 @@
+services:
+  # 1. Base de datos PostgreSQL blindada (sin puertos expuestos a internet)
+  minera_db:
+    image: postgres:17-alpine
+    container_name: minera_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-minera_secure_pass_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-sistemamin}
+    volumes:
+      - minera_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-sistemamin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - minera_net
+
+  # 2. Backend API (Node.js + Prisma)
+  minera_backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: minera_backend
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-minera_secure_pass_2026}@minera_db:5432/${POSTGRES_DB:-sistemamin}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-minera_jwt_secret_super_seguro_potosi_2026}
+      JWT_EXPIRES_IN: 8h
+      PORT: 3000
+      NODE_ENV: production
+      CORS_ORIGIN: "*"
+    depends_on:
+      minera_db:
+        condition: service_healthy
+    networks:
+      - minera_net
+
+  # 3. Frontend Web (Nginx + Vite build + Proxy a /api)
+  minera_frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: minera_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - minera_backend
+    networks:
+      - minera_net
+
+  # 4. Adminer (Gestor visual de Base de Datos en puerto 8085)
+  minera_adminer:
+    image: adminer:latest
+    container_name: minera_adminer
+    restart: always
+    ports:
+      - "8085:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: minera_db
+    depends_on:
+      - minera_db
+    networks:
+      - minera_net
+
+volumes:
+  minera_pg_data:
+    driver: local
+
+networks:
+  minera_net:
+    driver: bridge

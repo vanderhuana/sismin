@@ -1,0 +1,135 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  nombre    String   @db.VarChar(100)
+  password  String   @db.VarChar(255)
+  rol       RolUsuario @default(MODERADO)
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  internaciones Internacion[]
+
+  @@map("usuarios")
+}
+
+model Proveedor {
+  id             Int      @id @default(autoincrement())
+  nombreCompleto String   @db.VarChar(200)
+  ci             String   @unique @db.VarChar(20)
+  telefono       String?  @db.VarChar(20)
+  direccion      String?  @db.Text
+  tipo           TipoProveedor @default(PERSONA_NATURAL)
+  activo         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relaciones
+  internaciones Internacion[]
+
+  @@map("proveedores")
+}
+
+model Internacion {
+  id                Int      @id @default(autoincrement())
+  lote              String   @unique // Auto-generado: formato LOTE-001, LOTE-002, etc.
+  fechaInternacion  DateTime @default(now())
+  tipoMineral       TipoMineral
+  kilosBruto        Decimal  @db.Decimal(10,3)
+  estado            EstadoInternacion @default(EN_ESPERA_LEY)
+  anticipo          Decimal  @default(0) @db.Decimal(10,2)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Foreign Keys
+  proveedorId       Int
+  usuarioId         Int      // Usuario que registró la internación
+
+  // Relaciones
+  proveedor         Proveedor @relation(fields: [proveedorId], references: [id])
+  usuario           Usuario   @relation(fields: [usuarioId], references: [id])
+  calculo           Calculo?
+
+  @@map("internaciones")
+}
+
+model Calculo {
+  id                    Int      @id @default(autoincrement())
+  fechaCalculo          DateTime @default(now())
+  tipoMineral           TipoMineral
+  
+  // Campos para PLATA y PLOMO (mineral simple)
+  ley                   Decimal? @db.Decimal(10,3)
+  valorEscala           Decimal? @db.Decimal(10,2)
+  
+  // Campos para COMPLEJO (doble mineral)
+  leyPlata              Decimal? @db.Decimal(10,3)
+  valorEscalaPlata      Decimal? @db.Decimal(10,2)
+  leyPlomo              Decimal? @db.Decimal(10,3)
+  valorEscalaPlomo      Decimal? @db.Decimal(10,2)
+  valorEscalaTotal      Decimal? @db.Decimal(10,2)
+  
+  // Campos de cálculo
+  humedadPorcentaje     Decimal  @db.Decimal(5,2)
+  kilosNeto             Decimal  @db.Decimal(10,3) // Calculado
+  valorBruto            Decimal  @db.Decimal(12,2) // Calculado
+  regaliasPorcentaje    Decimal  @default(10) @db.Decimal(5,2)
+  regaliasMonto         Decimal  @db.Decimal(12,2) // Calculado
+  anticipos             Decimal  @default(0) @db.Decimal(10,2)
+  transporte            Decimal  @default(0) @db.Decimal(10,2)
+  saldoFinal            Decimal  @db.Decimal(12,2) // Calculado
+  
+  // Estado
+  estadoPago            EstadoPago @default(PENDIENTE)
+  fechaPago             DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Foreign Key
+  internacionId         Int      @unique
+
+  // Relaciones
+  internacion           Internacion @relation(fields: [internacionId], references: [id])
+
+  @@map("calculos")
+}
+
+// Enums
+enum RolUsuario {
+  ADMIN
+  MODERADO
+}
+
+enum TipoProveedor {
+  EMPRESA
+  PERSONA_NATURAL
+}
+
+enum TipoMineral {
+  PLATA
+  PLOMO
+  COMPLEJO
+}
+
+enum EstadoInternacion {
+  EN_ESPERA_LEY
+  CALCULADO
+  PAGADO
+}
+
+enum EstadoPago {
+  PENDIENTE
+  PAGADO
+}
