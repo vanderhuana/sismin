@@ -12,6 +12,7 @@ import InternMineral from './pages/InternMineral';
 import CalculatePay from './pages/CalculatePay';
 import MineralSales from './pages/MineralSales';
 import Anticipos from './pages/Anticipos';
+import Cotizador from './pages/Cotizador';
 import LoadingSpinner from './components/ui/LoadingSpinner';
 
 // Lazy loading para optimizar el bundle
@@ -59,6 +60,7 @@ function App() {
                     <Route path="/internar" element={<InternMineral />} />
                     <Route path="/anticipos" element={<Anticipos />} />
                     <Route path="/calcular" element={<CalculatePay />} />
+                    <Route path="/cotizador" element={<Cotizador />} />
                     <Route path="/ventas" element={<MineralSales />} />
                     <Route path="/comprobantes" element={<div className="p-8 text-center text-gray-500">Módulo de Comprobantes - Próximamente</div>} />
                     

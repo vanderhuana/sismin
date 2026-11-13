@@ -227,6 +227,13 @@ export const calculoService = {
       responseType: 'blob'
     });
     return response;
+  },
+
+  generateSimulacionPdf: async (data) => {
+    const response = await api.post('/calculos/simular-pdf', data, {
+      responseType: 'blob'
+    });
+    return response;
   }
 };
 

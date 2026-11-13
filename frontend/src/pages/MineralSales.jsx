@@ -33,7 +33,9 @@ const TIPOS_MINERAL = [
   { value: 'TODOS', label: 'Todos los Minerales', badgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-300' },
   { value: 'PLATA', label: 'Plata (Ag)', badgeClass: 'bg-slate-100 text-slate-800 border-slate-300' },
   { value: 'PLOMO', label: 'Plomo (Pb)', badgeClass: 'bg-zinc-100 text-zinc-800 border-zinc-300' },
-  { value: 'COMPLEJO', label: 'Complejo (Ag + Pb)', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300' }
+  { value: 'COMPLEJO', label: 'Complejo (Ag + Pb)', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300' },
+  { value: 'PIRITA', label: 'Pirita (Py)', badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  { value: 'OXIDO', label: 'Óxido (Ox)', badgeClass: 'bg-orange-100 text-orange-800 border-orange-300' }
 ];
 
 const formatKg = (n) => `${Number(Math.trunc(n) || 0).toLocaleString('es-BO')} kg`;
@@ -1040,6 +1042,10 @@ const MineralSales = () => {
                                         ? 'bg-slate-100 text-slate-800 border-slate-300'
                                         : r.tipoMineral === 'PLOMO'
                                         ? 'bg-zinc-100 text-zinc-800 border-zinc-300'
+                                        : r.tipoMineral === 'PIRITA'
+                                        ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                                        : r.tipoMineral === 'OXIDO'
+                                        ? 'bg-orange-100 text-orange-800 border-orange-300'
                                         : 'bg-amber-100 text-amber-800 border-amber-300'
                                     }`}
                                   >
@@ -1193,10 +1199,10 @@ const MineralSales = () => {
                           required
                         />
                       </div>
-                      {(filtroTipoMineral === 'PLATA' || filtroTipoMineral === 'COMPLEJO') && (
+                      {(filtroTipoMineral === 'PLATA' || filtroTipoMineral === 'PIRITA' || filtroTipoMineral === 'OXIDO' || filtroTipoMineral === 'COMPLEJO') && (
                         <div>
                           <label className="block text-xs font-semibold text-gray-700 mb-1">
-                            Ley Referencia Ag
+                            Ley Referencia {filtroTipoMineral === 'PLATA' ? 'Ag' : filtroTipoMineral === 'PIRITA' ? 'Py (DM)' : filtroTipoMineral === 'OXIDO' ? 'Ox (DM)' : 'Ag (DM)'}
                           </label>
                           <input
                             type="number"
@@ -1284,6 +1290,8 @@ const MineralSales = () => {
                 <option value="PLATA">Plata</option>
                 <option value="PLOMO">Plomo</option>
                 <option value="COMPLEJO">Complejo</option>
+                <option value="PIRITA">Pirita</option>
+                <option value="OXIDO">Óxido</option>
               </select>
               <button
                 type="button"
@@ -1439,7 +1447,7 @@ const MineralSales = () => {
                         <th className="py-3.5 px-4 text-right">Prom. Ag</th>
                       </>
                     )}
-                    {ventaDetalleItem.tipoMineral !== 'PLATA' && (
+                    {(ventaDetalleItem.tipoMineral === 'PLOMO' || ventaDetalleItem.tipoMineral === 'COMPLEJO') && (
                       <>
                         <th className="py-3.5 px-4 text-right">Ley Pb</th>
                         <th className="py-3.5 px-4 text-right">Prom. Pb</th>
@@ -1472,7 +1480,7 @@ const MineralSales = () => {
                           </td>
                         </>
                       )}
-                      {ventaDetalleItem.tipoMineral !== 'PLATA' && (
+                      {(ventaDetalleItem.tipoMineral === 'PLOMO' || ventaDetalleItem.tipoMineral === 'COMPLEJO') && (
                         <>
                           <td className="py-3.5 px-4 text-right">
                             <span className="font-mono font-bold text-sm bg-zinc-100 px-2 py-0.5 rounded text-zinc-800">
@@ -1508,7 +1516,7 @@ const MineralSales = () => {
                         </td>
                       </>
                     )}
-                    {ventaDetalleItem.tipoMineral !== 'PLATA' && (
+                    {(ventaDetalleItem.tipoMineral === 'PLOMO' || ventaDetalleItem.tipoMineral === 'COMPLEJO') && (
                       <>
                         <td className="py-4 px-4 text-right">
                           <span className="font-mono text-base font-black text-amber-300">

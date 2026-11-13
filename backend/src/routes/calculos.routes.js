@@ -388,6 +388,284 @@ router.put('/:id/pagar', async (req, res, next) => {
   }
 });
 
+// Función auxiliar compartida para renderizar el comprobante oficial en PDF
+function renderComprobantePdfDoc(doc, {
+  fechaFormateada,
+  nombreProveedor,
+  numeroLote,
+  tipoMineral,
+  leyTexto,
+  kilosBrutoNum,
+  kilosNetoNum,
+  valorBrutoNum,
+  regaliasPorcentaje,
+  totalAnticipos,
+  transpNum,
+  saldoFinalNum
+}, logoPath) {
+  const hasLogo = fs.existsSync(logoPath);
+
+  // 1. Marca de agua de fondo (centrada con opacidad suave)
+  if (hasLogo) {
+    doc.save();
+    doc.opacity(0.08);
+    // Ancho página: 309, Alto: 476. Logo ancho: 190, centrado horizontal y verticalmente
+    doc.image(logoPath, (309 - 190) / 2, (476 - 220) / 2, { width: 190 });
+    doc.restore();
+  }
+
+  // 2. Encabezado institucional
+  let topY = 14;
+  if (hasLogo) {
+    doc.image(logoPath, 16, topY + 2, { width: 34, height: 38 });
+  }
+
+  doc.font('Helvetica-Bold').fontSize(12).fillColor('#064e3b')
+     .text('MINERA "A y M"', hasLogo ? 54 : 16, topY + 6);
+  doc.font('Helvetica').fontSize(7.5).fillColor('#64748b')
+     .text('EMPRESA MINERA', hasLogo ? 54 : 16, topY + 20);
+  doc.font('Helvetica').fontSize(6.5).fillColor('#94a3b8')
+     .text('COMERCIALIZACIÓN DE MINERALES', hasLogo ? 54 : 16, topY + 30);
+
+  // Recuadro "DETALLE" a la derecha
+  doc.roundedRect(218, topY + 6, 75, 24, 3)
+     .fillColor('#f8fafc').strokeColor('#064e3b').lineWidth(1.2).fillAndStroke();
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#064e3b')
+     .text('DETALLE', 218, topY + 13, { width: 75, align: 'center' });
+
+  // Línea divisoria elegante
+  doc.moveTo(16, topY + 48).lineTo(293, topY + 48).strokeColor('#064e3b').lineWidth(1.2).stroke();
+
+  const kilosBrutoStr = `${Math.trunc(kilosBrutoNum).toLocaleString('es-BO')} kg`;
+  const kilosNetoStr = `${Math.trunc(kilosNetoNum).toLocaleString('es-BO')} kg`;
+  const valorBrutoStr = `Bs. ${Math.trunc(valorBrutoNum).toLocaleString('es-BO')}`;
+
+  // 4. Bloque de Datos Generales (Líneas punteadas)
+  let curY = 56;
+  const itemHeight = 15.5;
+
+  const renderDottedField = (label, value, isBold = false) => {
+    doc.font('Helvetica-Bold').fontSize(8).fillColor('#1e293b')
+       .text(label, 16, curY, { width: 70 });
+    
+    const valX = 86;
+    const valW = 207;
+    doc.font(isBold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5).fillColor('#0f172a')
+       .text(String(value), valX, curY, { width: valW, ellipsis: true });
+
+    // Línea punteada sutil
+    doc.save();
+    doc.strokeColor('#cbd5e1').lineWidth(0.6).dash(1, { space: 2 })
+       .moveTo(valX, curY + 11).lineTo(valX + valW, curY + 11).stroke();
+    doc.restore();
+
+    curY += itemHeight;
+  };
+
+  renderDottedField('Fecha:', fechaFormateada);
+  renderDottedField('Nombre:', nombreProveedor, true);
+  renderDottedField('Lote N°:', numeroLote, true);
+  renderDottedField('Ley:', leyTexto);
+  renderDottedField('Mineral:', tipoMineral);
+  renderDottedField('Kilos Bruto:', kilosBrutoStr);
+  renderDottedField('Kilos Neto:', kilosNetoStr, true);
+
+  curY += 2;
+
+  // Fila destacada de VALOR BRUTO
+  doc.roundedRect(16, curY, 277, 20, 3)
+     .fillColor('#f8fafc').strokeColor('#cbd5e1').lineWidth(1).fillAndStroke();
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0f172a')
+     .text('VALOR BRUTO', 24, curY + 5.5);
+  doc.font('Helvetica-Bold').fontSize(10).fillColor('#064e3b')
+     .text(valorBrutoStr, 120, curY + 4.5, { width: 165, align: 'right' });
+
+  curY += 26;
+
+  // 5. Tabla de Descuentos
+  const tableX = 16;
+  const col1W = 185;
+  const col2W = 92;
+  const tableW = col1W + col2W;
+
+  // Cabecera de la tabla
+  doc.rect(tableX, curY, tableW, 16)
+     .fillColor('#f1f5f9').strokeColor('#94a3b8').lineWidth(1).fillAndStroke();
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#334155')
+     .text('Descuentos', tableX + 8, curY + 4);
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#334155')
+     .text('Bs. / %', tableX + col1W, curY + 4, { width: col2W - 8, align: 'right' });
+
+  curY += 16;
+
+  // Fila 1: Regalía Minera
+  const regaliaPctStr = `${Number(regaliasPorcentaje || 10)} %`;
+  doc.rect(tableX, curY, tableW, 16)
+     .fillColor('#ffffff').strokeColor('#cbd5e1').lineWidth(0.8).fillAndStroke();
+  doc.font('Helvetica').fontSize(8).fillColor('#1e293b')
+     .text('Regalía Minera', tableX + 8, curY + 4);
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0f172a')
+     .text(regaliaPctStr, tableX + col1W, curY + 3.5, { width: col2W - 8, align: 'right' });
+
+  curY += 16;
+
+  // Fila 2: Anticipos
+  const anticiposBsStr = `Bs. ${Math.trunc(totalAnticipos).toLocaleString('es-BO')}`;
+  doc.rect(tableX, curY, tableW, 16)
+     .fillColor('#ffffff').strokeColor('#cbd5e1').lineWidth(0.8).fillAndStroke();
+  doc.font('Helvetica').fontSize(8).fillColor('#1e293b')
+     .text('Anticipos', tableX + 8, curY + 4);
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0f172a')
+     .text(anticiposBsStr, tableX + col1W, curY + 3.5, { width: col2W - 8, align: 'right' });
+
+  curY += 22;
+
+  // 6. Resultados Finales
+  // A) TRANSPORTE (arriba de Saldo Final)
+  const transpBsStr = `Bs. ${Math.trunc(transpNum).toLocaleString('es-BO')}`;
+
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#475569')
+     .text('TRANSPORTE', 16, curY);
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0f172a')
+     .text(transpBsStr, 120, curY, { width: 173, align: 'right' });
+
+  // Dotted line para transporte
+  doc.save();
+  doc.strokeColor('#cbd5e1').lineWidth(0.6).dash(1, { space: 2 })
+     .moveTo(86, curY + 10).lineTo(293, curY + 10).stroke();
+  doc.restore();
+
+  curY += 16;
+
+  // B) SALDO FINAL (destacado en negrita con monto literal en palabras)
+  const saldoFinalInt = Math.trunc(saldoFinalNum);
+  const saldoFinalStr = `Bs. ${saldoFinalInt.toLocaleString('es-BO')}`;
+  const literalStr = numeroALetras(saldoFinalInt);
+
+  doc.roundedRect(16, curY, 277, 34, 4)
+     .fillColor('#ecfdf5').strokeColor('#059669').lineWidth(1.5).fillAndStroke();
+  
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#065f46')
+     .text(`SALDO FINAL: ${saldoFinalStr}`, 24, curY + 6, { width: 261, align: 'left' });
+  
+  doc.font('Helvetica').fontSize(6.5).fillColor('#047857')
+     .text(`Son: ${literalStr}`, 24, curY + 20, { width: 261, ellipsis: true });
+
+  curY += 46;
+
+  // 7. Firmas de Gerente "A y M" e Interesado
+  const signW = 115;
+  const signLeftX = 22;
+  const signRightX = 172;
+
+  // Líneas punteadas para firmas
+  doc.save();
+  doc.strokeColor('#64748b').lineWidth(0.8).dash(2, { space: 2 })
+     .moveTo(signLeftX, curY + 15).lineTo(signLeftX + signW, curY + 15).stroke();
+  doc.moveTo(signRightX, curY + 15).lineTo(signRightX + signW, curY + 15).stroke();
+  doc.restore();
+
+  doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#334155')
+     .text('GERENTE "A y M"', signLeftX, curY + 19, { width: signW, align: 'center' });
+  doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#334155')
+     .text('INTERESADO', signRightX, curY + 19, { width: signW, align: 'center' });
+
+  // Finalizar el documento
+  doc.end();
+}
+
+// POST /api/calculos/simular-pdf - Generar comprobante PDF sin guardar en la BD (Cotizador)
+router.post('/simular-pdf', async (req, res, next) => {
+  try {
+    const {
+      proveedorNombre = 'PROVEEDOR',
+      proveedorId,
+      lote = 'COTIZACION',
+      tipoMineral = 'PLATA',
+      kilosBruto = 0,
+      humedadPorcentaje = 3,
+      ley,
+      valorEscala,
+      leyPlata,
+      valorEscalaPlata,
+      leyPlomo,
+      valorEscalaPlomo,
+      regaliasPorcentaje = 10,
+      anticipos = 0,
+      transporte = 0
+    } = req.body;
+
+    let nombreProveedor = proveedorNombre || 'PROVEEDOR';
+    if (proveedorId) {
+      const prov = await req.prisma.proveedor.findUnique({
+        where: { id: parseInt(proveedorId) },
+        select: { nombreCompleto: true }
+      });
+      if (prov?.nombreCompleto) {
+        nombreProveedor = prov.nombreCompleto;
+      }
+    }
+
+    const calc = calcularPago({
+      kilosBruto: Number(kilosBruto) || 0,
+      humedadPorcentaje: Number(humedadPorcentaje) || 0,
+      tipoMineral,
+      ley,
+      valorEscala,
+      leyPlata,
+      valorEscalaPlata,
+      leyPlomo,
+      valorEscalaPlomo,
+      regaliasPorcentaje: Number(regaliasPorcentaje) || 0,
+      anticipos: Number(anticipos) || 0,
+      transporte: Number(transporte) || 0
+    });
+
+    const ahora = new Date();
+    const diaStr = String(ahora.getDate()).padStart(2, '0');
+    const mesStr = String(ahora.getMonth() + 1).padStart(2, '0');
+    const anioStr = ahora.getFullYear();
+    const fechaFormateada = `P / ${diaStr} / ${mesStr} / ${anioStr}`;
+
+    let leyTexto = '—';
+    if (tipoMineral === 'COMPLEJO') {
+      leyTexto = `Ag: ${leyPlata ?? '—'} DM  |  Pb: ${leyPlomo ?? '—'} %`;
+    } else if (tipoMineral === 'PLOMO') {
+      leyTexto = `${ley ?? '—'} %`;
+    } else {
+      leyTexto = `${ley ?? '—'} DM`;
+    }
+
+    const doc = new PDFDocument({
+      size: [309, 476],
+      margins: { top: 14, bottom: 14, left: 16, right: 16 },
+      autoFirstPage: true
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="cotizacion-${lote || 'SIM'}.pdf"`);
+    doc.pipe(res);
+
+    renderComprobantePdfDoc(doc, {
+      fechaFormateada,
+      nombreProveedor: (nombreProveedor || '—').toUpperCase(),
+      numeroLote: lote || 'COTIZACION',
+      tipoMineral,
+      leyTexto,
+      kilosBrutoNum: Math.trunc(Number(kilosBruto) || 0),
+      kilosNetoNum: Math.trunc(Number(calc.kilosNeto) || 0),
+      valorBrutoNum: Math.trunc(Number(calc.valorBruto) || 0),
+      regaliasPorcentaje: Number(regaliasPorcentaje || 10),
+      totalAnticipos: Math.trunc(Number(anticipos) || 0),
+      transpNum: Math.trunc(Number(transporte) || 0),
+      saldoFinalNum: Math.trunc(Number(calc.saldoFinal) || 0)
+    }, logoPath);
+
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/calculos/:id/comprobante - Generar comprobante PDF
 router.get('/:id/comprobante', async (req, res, next) => {
   try {
@@ -432,40 +710,7 @@ router.get('/:id/comprobante', async (req, res, next) => {
     // Pipe del documento al response
     doc.pipe(res);
 
-    const hasLogo = fs.existsSync(logoPath);
-
-    // 1. Marca de agua de fondo (centrada con opacidad suave)
-    if (hasLogo) {
-      doc.save();
-      doc.opacity(0.08);
-      // Ancho página: 309, Alto: 476. Logo ancho: 190, centrado horizontal y verticalmente
-      doc.image(logoPath, (309 - 190) / 2, (476 - 220) / 2, { width: 190 });
-      doc.restore();
-    }
-
-    // 2. Encabezado institucional
-    let topY = 14;
-    if (hasLogo) {
-      doc.image(logoPath, 16, topY + 2, { width: 34, height: 38 });
-    }
-
-    doc.font('Helvetica-Bold').fontSize(12).fillColor('#064e3b')
-       .text('MINERA "A y M"', hasLogo ? 54 : 16, topY + 6);
-    doc.font('Helvetica').fontSize(7.5).fillColor('#64748b')
-       .text('EMPRESA MINERA', hasLogo ? 54 : 16, topY + 20);
-    doc.font('Helvetica').fontSize(6.5).fillColor('#94a3b8')
-       .text('COMERCIALIZACIÓN DE MINERALES', hasLogo ? 54 : 16, topY + 30);
-
-    // Recuadro "DETALLE" a la derecha
-    doc.roundedRect(218, topY + 6, 75, 24, 3)
-       .fillColor('#f8fafc').strokeColor('#064e3b').lineWidth(1.2).fillAndStroke();
-    doc.font('Helvetica-Bold').fontSize(11).fillColor('#064e3b')
-       .text('DETALLE', 218, topY + 13, { width: 75, align: 'center' });
-
-    // Línea divisoria elegante
-    doc.moveTo(16, topY + 48).lineTo(293, topY + 48).strokeColor('#064e3b').lineWidth(1.2).stroke();
-
-    // 3. Preparación de datos del comprobante
+    // Preparación de datos del comprobante
     const fechaPago = calculo.fechaPago || calculo.fechaCalculo || new Date();
     const diaStr = String(fechaPago.getDate()).padStart(2, '0');
     const mesStr = String(fechaPago.getMonth() + 1).padStart(2, '0');
@@ -485,146 +730,20 @@ router.get('/:id/comprobante', async (req, res, next) => {
       leyTexto = `${calculo.ley ?? '—'} DM`;
     }
 
-    const kilosBrutoNum = Math.trunc(Number(calculo.internacion.kilosBruto) || 0);
-    const kilosBrutoStr = `${kilosBrutoNum.toLocaleString('es-BO')} kg`;
-
-    const valorBrutoNum = Math.trunc(Number(calculo.valorBruto) || 0);
-    const valorBrutoStr = `Bs. ${valorBrutoNum.toLocaleString('es-BO')}`;
-
-    // 4. Bloque de Datos Generales (Líneas punteadas)
-    let curY = 56;
-    const itemHeight = 15.5;
-
-    const renderDottedField = (label, value, isBold = false) => {
-      doc.font('Helvetica-Bold').fontSize(8).fillColor('#1e293b')
-         .text(label, 16, curY, { width: 70 });
-      
-      const valX = 86;
-      const valW = 207;
-      doc.font(isBold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5).fillColor('#0f172a')
-         .text(String(value), valX, curY, { width: valW, ellipsis: true });
-
-      // Línea punteada sutil
-      doc.save();
-      doc.strokeColor('#cbd5e1').lineWidth(0.6).dash(1, { space: 2 })
-         .moveTo(valX, curY + 11).lineTo(valX + valW, curY + 11).stroke();
-      doc.restore();
-
-      curY += itemHeight;
-    };
-
-    renderDottedField('Fecha:', fechaFormateada);
-    renderDottedField('Nombre:', nombreProveedor, true);
-    renderDottedField('Lote N°:', numeroLote, true);
-    renderDottedField('Ley:', leyTexto);
-    renderDottedField('Mineral:', tipoMineral);
-    renderDottedField('Kilos Bruto:', kilosBrutoStr);
-
-    curY += 2;
-
-    // Fila destacada de VALOR BRUTO
-    doc.roundedRect(16, curY, 277, 20, 3)
-       .fillColor('#f8fafc').strokeColor('#cbd5e1').lineWidth(1).fillAndStroke();
-    doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0f172a')
-       .text('VALOR BRUTO', 24, curY + 5.5);
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#064e3b')
-       .text(valorBrutoStr, 120, curY + 4.5, { width: 165, align: 'right' });
-
-    curY += 26;
-
-    // 5. Tabla de Descuentos
-    // Ancho tabla: 277 pt. Columna 1 (185 pt) | Columna 2 (92 pt)
-    const tableX = 16;
-    const col1W = 185;
-    const col2W = 92;
-    const tableW = col1W + col2W;
-
-    // Cabecera de la tabla
-    doc.rect(tableX, curY, tableW, 16)
-       .fillColor('#f1f5f9').strokeColor('#94a3b8').lineWidth(1).fillAndStroke();
-    doc.font('Helvetica-Bold').fontSize(8).fillColor('#334155')
-       .text('Descuentos', tableX + 8, curY + 4);
-    doc.font('Helvetica-Bold').fontSize(8).fillColor('#334155')
-       .text('Bs. / %', tableX + col1W, curY + 4, { width: col2W - 8, align: 'right' });
-
-    curY += 16;
-
-    // Fila 1: Regalía Minera (solo porcentaje como solicitó el usuario)
-    const regaliaPctStr = `${Number(calculo.regaliasPorcentaje || 10)} %`;
-    doc.rect(tableX, curY, tableW, 16)
-       .fillColor('#ffffff').strokeColor('#cbd5e1').lineWidth(0.8).fillAndStroke();
-    doc.font('Helvetica').fontSize(8).fillColor('#1e293b')
-       .text('Regalía Minera', tableX + 8, curY + 4);
-    doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0f172a')
-       .text(regaliaPctStr, tableX + col1W, curY + 3.5, { width: col2W - 8, align: 'right' });
-
-    curY += 16;
-
-    // Fila 2: Anticipos (solo el monto en Bs como solicitó el usuario)
-    const totalAnticipos = Math.trunc(Number(calculo.anticipos || 0));
-    const anticiposBsStr = `Bs. ${totalAnticipos.toLocaleString('es-BO')}`;
-    doc.rect(tableX, curY, tableW, 16)
-       .fillColor('#ffffff').strokeColor('#cbd5e1').lineWidth(0.8).fillAndStroke();
-    doc.font('Helvetica').fontSize(8).fillColor('#1e293b')
-       .text('Anticipos', tableX + 8, curY + 4);
-    doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0f172a')
-       .text(anticiposBsStr, tableX + col1W, curY + 3.5, { width: col2W - 8, align: 'right' });
-
-    curY += 22;
-
-    // 6. Resultados Finales
-    // A) TRANSPORTE (arriba de Saldo Final)
-    const transpNum = Math.trunc(Number(calculo.transporte || 0));
-    const transpBsStr = `Bs. ${transpNum.toLocaleString('es-BO')}`;
-
-    doc.font('Helvetica-Bold').fontSize(8).fillColor('#475569')
-       .text('TRANSPORTE', 16, curY);
-    doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0f172a')
-       .text(transpBsStr, 120, curY, { width: 173, align: 'right' });
-
-    // Dotted line para transporte
-    doc.save();
-    doc.strokeColor('#cbd5e1').lineWidth(0.6).dash(1, { space: 2 })
-       .moveTo(86, curY + 10).lineTo(293, curY + 10).stroke();
-    doc.restore();
-
-    curY += 16;
-
-    // B) SALDO FINAL (destacado en negrita con monto literal en palabras)
-    const saldoFinalNum = Math.trunc(Number(calculo.saldoFinal || 0));
-    const saldoFinalStr = `Bs. ${saldoFinalNum.toLocaleString('es-BO')}`;
-    const literalStr = numeroALetras(saldoFinalNum);
-
-    doc.roundedRect(16, curY, 277, 34, 4)
-       .fillColor('#ecfdf5').strokeColor('#059669').lineWidth(1.5).fillAndStroke();
-    
-    doc.font('Helvetica-Bold').fontSize(11).fillColor('#065f46')
-       .text(`SALDO FINAL: ${saldoFinalStr}`, 24, curY + 6, { width: 261, align: 'left' });
-    
-    doc.font('Helvetica').fontSize(6.5).fillColor('#047857')
-       .text(`Son: ${literalStr}`, 24, curY + 20, { width: 261, ellipsis: true });
-
-    curY += 46;
-
-    // 7. Firmas de Gerente "A y M" e Interesado
-    const signW = 115;
-    const signLeftX = 22;
-    const signRightX = 172;
-
-    // Líneas punteadas para firmas
-    doc.save();
-    doc.strokeColor('#64748b').lineWidth(0.8).dash(2, { space: 2 })
-       .moveTo(signLeftX, curY + 15).lineTo(signLeftX + signW, curY + 15).stroke();
-    doc.moveTo(signRightX, curY + 15).lineTo(signRightX + signW, curY + 15).stroke();
-    doc.restore();
-
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#334155')
-       .text('GERENTE "A y M"', signLeftX, curY + 19, { width: signW, align: 'center' });
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#334155')
-       .text('INTERESADO', signRightX, curY + 19, { width: signW, align: 'center' });
-
-    // Finalizar el documento
-    doc.end();
+    renderComprobantePdfDoc(doc, {
+      fechaFormateada,
+      nombreProveedor,
+      numeroLote,
+      tipoMineral,
+      leyTexto,
+      kilosBrutoNum: Math.trunc(Number(calculo.internacion?.kilosBruto || calculo.kilosNeto) || 0),
+      kilosNetoNum: Math.trunc(Number(calculo.kilosNeto) || 0),
+      valorBrutoNum: Math.trunc(Number(calculo.valorBruto) || 0),
+      regaliasPorcentaje: Number(calculo.regaliasPorcentaje || 10),
+      totalAnticipos: Math.trunc(Number(calculo.anticipos) || 0),
+      transpNum: Math.trunc(Number(calculo.transporte) || 0),
+      saldoFinalNum: Math.trunc(Number(calculo.saldoFinal) || 0)
+    }, logoPath);
     
   } catch (error) {
     next(error);

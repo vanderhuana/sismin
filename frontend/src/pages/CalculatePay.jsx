@@ -15,16 +15,26 @@ import {
   AlertCircle,
   Clock,
   CheckCircle,
+  Check,
   FileDown,
   Banknote,
   ChevronDown,
   ChevronUp,
   Coins,
   AlertTriangle,
-  Receipt
+  Receipt,
+  Printer
 } from 'lucide-react';
 
-const mineralLabel = { PLATA: 'Plata', PLOMO: 'Plomo', COMPLEJO: 'Complejo' };
+const mineralLabel = { PLATA: 'Plata', PLOMO: 'Plomo', COMPLEJO: 'Complejo', PIRITA: 'Pirita', OXIDO: 'Óxido' };
+
+const mineralBadge = {
+  PLATA: { label: 'Plata (Ag)', badge: 'bg-slate-100 text-slate-800 border-slate-300' },
+  PLOMO: { label: 'Plomo (Pb)', badge: 'bg-zinc-100 text-zinc-800 border-zinc-300' },
+  COMPLEJO: { label: 'Complejo (Ag+Pb)', badge: 'bg-amber-100 text-amber-800 border-amber-300' },
+  PIRITA: { label: 'Pirita (Py)', badge: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  OXIDO: { label: 'Óxido (Ox)', badge: 'bg-orange-100 text-orange-800 border-orange-300' }
+};
 
 const CalculatePay = () => {
   const location = useLocation();
@@ -50,11 +60,16 @@ const CalculatePay = () => {
   const [descuentosPactados, setDescuentosPactados] = useState({});
   const [modalAnticiposProveedorOpen, setModalAnticiposProveedorOpen] = useState(false);
 
+  // Estado para confirmación de pago y descarga/impresión
+  const [modalConfirmarPago, setModalConfirmarPago] = useState(null);
+  const [pagandoLote, setPagandoLote] = useState(false);
+  const [descargandoId, setDescargandoId] = useState(null);
+
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm({
     defaultValues: {
       humedadPorcentaje: 3,
       regaliasPorcentaje: 10,
-      transporte: 0,
+      transporte: '',
       anticipos: '',
       ley: '',
       valorEscala: '',
@@ -143,7 +158,7 @@ const CalculatePay = () => {
     reset({
       humedadPorcentaje: 3,
       regaliasPorcentaje: 10,
-      transporte: 0,
+      transporte: '',
       anticipos: totalAnticipo,
       ley: '',
       valorEscala: '',
@@ -272,30 +287,55 @@ const CalculatePay = () => {
     }
   };
 
-  const handleMarkPaid = async (calculo) => {
-    if (!window.confirm(`¿Marcar como pagado ${calculo.internacion.lote}?`)) return;
+  // Abrir modal elegante de confirmación de pago
+  const handleOpenConfirmarPago = (calculo) => {
+    setModalConfirmarPago(calculo);
+  };
+
+  // Confirmar el pago (con opción de descargar/imprimir comprobante al mismo tiempo)
+  const handleConfirmarPago = async (calculo, descargarComprobante = false) => {
+    if (!calculo) return;
     try {
+      setPagandoLote(true);
+      setError(null);
       await calculoService.markAsPaid(calculo.id);
-      showSuccess('Pago registrado');
+      showSuccess(`✅ Pago registrado para el lote ${calculo.internacion.lote} — ${formatBs(calculo.saldoFinal)}`);
+      setModalConfirmarPago(null);
+      if (descargarComprobante) {
+        await handlePrintOrDownloadReceipt(calculo);
+      }
       loadData();
     } catch (err) {
       setError(handleApiError(err));
+    } finally {
+      setPagandoLote(false);
     }
   };
 
-  const handleDownloadReceipt = async (calculo) => {
+  // Imprimir o descargar comprobante (abre vista previa en nueva pestaña lista para imprimir con Ctrl+P o descarga directa)
+  const handlePrintOrDownloadReceipt = async (calculo) => {
     try {
+      setDescargandoId(calculo.id);
       const response = await calculoService.generateReceipt(calculo.id);
-      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `comprobante-${calculo.internacion.lote}.pdf`;
-      link.click();
-      window.URL.revokeObjectURL(url);
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const printWindow = window.open(url, '_blank');
+      if (!printWindow) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `comprobante-${calculo.internacion.lote}.pdf`;
+        link.click();
+      }
+      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
     } catch (err) {
       setError(handleApiError(err));
+    } finally {
+      setDescargandoId(null);
     }
   };
+
+  const handleMarkPaid = handleOpenConfirmarPago;
+  const handleDownloadReceipt = handlePrintOrDownloadReceipt;
 
   const isComplejo = selected?.tipoMineral === 'COMPLEJO';
 
@@ -403,12 +443,13 @@ const CalculatePay = () => {
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <label className="mb-1 block text-sm font-medium text-gray-700">
-                        Ley ({selected.tipoMineral === 'PLATA' ? 'DM' : '%'}) *
+                        Ley ({selected.tipoMineral === 'PLOMO' ? '%' : 'DM'}) *
                       </label>
                       <input
                         type="number"
                         step="1"
                         {...register('ley', { required: 'Requerido', min: 1 })}
+                        onFocus={(e) => e.target.select()}
                         className={`input ${errors.ley ? 'input-error' : ''}`}
                         placeholder="Ej: 95"
                       />
@@ -424,6 +465,7 @@ const CalculatePay = () => {
                         type="number"
                         step="1"
                         {...register('valorEscala', { required: 'Requerido', min: 1 })}
+                        onFocus={(e) => e.target.select()}
                         className={`input ${errors.valorEscala ? 'input-error' : ''}`}
                         placeholder="Ej: 140"
                       />
@@ -442,6 +484,7 @@ const CalculatePay = () => {
                           type="number"
                           step="1"
                           {...register('leyPlata', { required: 'Requerido', min: 1 })}
+                          onFocus={(e) => e.target.select()}
                           className={`input ${errors.leyPlata ? 'input-error' : ''}`}
                           placeholder="Ej: 95"
                         />
@@ -452,6 +495,7 @@ const CalculatePay = () => {
                           type="number"
                           step="1"
                           {...register('valorEscalaPlata', { required: 'Requerido', min: 1 })}
+                          onFocus={(e) => e.target.select()}
                           className={`input ${errors.valorEscalaPlata ? 'input-error' : ''}`}
                           placeholder="Ej: 140"
                         />
@@ -465,6 +509,7 @@ const CalculatePay = () => {
                           type="number"
                           step="1"
                           {...register('leyPlomo', { required: 'Requerido', min: 1 })}
+                          onFocus={(e) => e.target.select()}
                           className={`input ${errors.leyPlomo ? 'input-error' : ''}`}
                           placeholder="Ej: 20"
                         />
@@ -475,6 +520,7 @@ const CalculatePay = () => {
                           type="number"
                           step="1"
                           {...register('valorEscalaPlomo', { required: 'Requerido', min: 1 })}
+                          onFocus={(e) => e.target.select()}
                           className={`input ${errors.valorEscalaPlomo ? 'input-error' : ''}`}
                           placeholder="Ej: 2"
                         />
@@ -492,6 +538,7 @@ const CalculatePay = () => {
                       min="0"
                       max="100"
                       {...register('humedadPorcentaje', { required: true, min: 0, max: 100 })}
+                      onFocus={(e) => e.target.select()}
                       className="input"
                     />
                   </div>
@@ -502,6 +549,7 @@ const CalculatePay = () => {
                       step="1"
                       min="0"
                       {...register('regaliasPorcentaje')}
+                      onFocus={(e) => e.target.select()}
                       className="input"
                     />
                   </div>
@@ -512,6 +560,7 @@ const CalculatePay = () => {
                       step="1"
                       min="0"
                       {...register('transporte')}
+                      onFocus={(e) => e.target.select()}
                       className="input"
                       placeholder="0"
                     />
@@ -879,68 +928,198 @@ const CalculatePay = () => {
       )}
 
       {/* Cálculos pendientes de pago */}
-      <div className="card">
-        <div className="card-header">
-          <div className="flex items-center gap-2">
-            <Banknote className="h-5 w-5 text-green-600" />
-            <h2 className="card-title text-lg">Cálculos pendientes de pago</h2>
+      <div className="card shadow-sm border border-gray-200 overflow-hidden">
+        <div className="card-header bg-gradient-to-r from-gray-50 to-white border-b border-gray-200 py-4 px-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700">
+              <Banknote className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Cálculos pendientes de pago</h2>
+              <p className="text-xs text-gray-500">Lotes liquidados listos para desembolso o emisión de comprobante</p>
+            </div>
           </div>
+          {calculos.length > 0 && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+              <Clock className="h-3.5 w-3.5 text-amber-600" />
+              <span>{calculos.length} {calculos.length === 1 ? 'lote pendiente' : 'lotes pendientes'}</span>
+            </span>
+          )}
         </div>
+
         {loadingCalculos ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary-600 mb-2" />
+            <p className="text-sm text-gray-500">Cargando cálculos pendientes...</p>
           </div>
         ) : calculos.length === 0 ? (
-          <p className="card-content py-8 text-center text-sm text-gray-500">
-            No hay cálculos pendientes de pago
-          </p>
+          <div className="py-12 text-center">
+            <CheckCircle className="h-10 w-10 text-emerald-500 mx-auto mb-2 opacity-80" />
+            <p className="text-sm font-semibold text-gray-700">No hay cálculos pendientes de pago</p>
+            <p className="text-xs text-gray-500 mt-1">Todos los lotes calculados están al día</p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="table">
-              <thead className="table-header">
-                <tr className="table-header-row">
-                  <th className="table-header-cell">Lote</th>
-                  <th className="table-header-cell">Proveedor</th>
-                  <th className="table-header-cell">Mineral</th>
-                  <th className="table-header-cell">Valor bruto</th>
-                  <th className="table-header-cell">Saldo final</th>
-                  <th className="table-header-cell">Acciones</th>
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-gray-200 text-xs font-bold text-gray-600 uppercase tracking-wider">
+                  <th className="py-3.5 px-5">Lote</th>
+                  <th className="py-3.5 px-5">Proveedor</th>
+                  <th className="py-3.5 px-4 text-center">Mineral</th>
+                  <th className="py-3.5 px-5 text-right">Valor Bruto</th>
+                  <th className="py-3.5 px-5 text-right">Saldo Final</th>
+                  <th className="py-3.5 px-5 text-center w-60">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="table-body">
-                {calculos.map((calculo) => (
-                  <tr key={calculo.id} className="table-row">
-                    <td className="table-cell font-medium">{calculo.internacion.lote}</td>
-                    <td className="table-cell">{calculo.internacion.proveedor.nombreCompleto}</td>
-                    <td className="table-cell">{mineralLabel[calculo.tipoMineral]}</td>
-                    <td className="table-cell">{formatBs(calculo.valorBruto)}</td>
-                    <td className="table-cell font-semibold text-primary-600">
-                      {formatBs(calculo.saldoFinal)}
-                    </td>
-                    <td className="table-cell">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleMarkPaid(calculo)}
-                          className="btn btn-primary btn-sm"
-                        >
-                          Marcar pagado
-                        </button>
-                        <button
-                          onClick={() => handleDownloadReceipt(calculo)}
-                          className="btn btn-secondary btn-sm"
-                          title="Descargar comprobante"
-                        >
-                          <FileDown className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {calculos.map((calculo) => {
+                  const mBadge = mineralBadge[calculo.tipoMineral] || {
+                    label: calculo.tipoMineral,
+                    badge: 'bg-gray-100 text-gray-800 border-gray-300'
+                  };
+                  return (
+                    <tr key={calculo.id} className="hover:bg-slate-50/70 transition-colors">
+                      {/* Lote */}
+                      <td className="py-4 px-5 whitespace-nowrap">
+                        <span className="font-mono font-bold text-xs bg-slate-100 text-slate-800 border border-slate-300 px-2.5 py-1 rounded-md">
+                          {calculo.internacion.lote}
+                        </span>
+                      </td>
+
+                      {/* Proveedor */}
+                      <td className="py-4 px-5">
+                        <div className="font-semibold text-sm text-gray-900">
+                          {calculo.internacion.proveedor?.nombreCompleto || '—'}
+                        </div>
+                        {calculo.internacion.proveedor?.ci && (
+                          <div className="text-xs text-gray-500 font-mono mt-0.5">
+                            CI: {calculo.internacion.proveedor.ci}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Mineral con Badge de Color */}
+                      <td className="py-4 px-4 text-center whitespace-nowrap">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded text-xs font-bold border ${mBadge.badge}`}>
+                          {mBadge.label}
+                        </span>
+                      </td>
+
+                      {/* Valor Bruto */}
+                      <td className="py-4 px-5 text-right whitespace-nowrap font-mono text-sm text-gray-700">
+                        {formatBs(calculo.valorBruto)}
+                      </td>
+
+                      {/* Saldo Final Destacado */}
+                      <td className="py-4 px-5 text-right whitespace-nowrap">
+                        <span className="inline-block font-mono font-bold text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg">
+                          {formatBs(calculo.saldoFinal)}
+                        </span>
+                      </td>
+
+                      {/* Acciones Espaciadas con Texto e Iconos */}
+                      <td className="py-4 px-5 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenConfirmarPago(calculo)}
+                            className="btn btn-sm bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3 py-1.5 rounded-lg shadow-sm inline-flex items-center gap-1.5 transition-all"
+                            title="Confirmar el pago y asentar en el sistema"
+                          >
+                            <Banknote className="h-3.5 w-3.5" />
+                            <span>Confirmar Pago</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handlePrintOrDownloadReceipt(calculo)}
+                            disabled={descargandoId === calculo.id}
+                            className="btn btn-secondary btn-sm text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-sm inline-flex items-center gap-1.5 transition-all"
+                            title="Imprimir o descargar comprobante oficial"
+                          >
+                            {descargandoId === calculo.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-600" />
+                            ) : (
+                              <Printer className="h-3.5 w-3.5 text-slate-600" />
+                            )}
+                            <span>Imprimir</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* MODAL PARA CONFIRMAR PAGO */}
+      {modalConfirmarPago && (
+        <Modal
+          open={Boolean(modalConfirmarPago)}
+          onClose={() => setModalConfirmarPago(null)}
+          title={`Confirmar Pago — ${modalConfirmarPago.internacion.lote}`}
+          size="md"
+        >
+          <div className="space-y-4">
+            <div className="rounded-xl bg-emerald-50/80 border border-emerald-200 p-4 space-y-2">
+              <div className="flex items-center justify-between text-xs text-emerald-800 font-semibold uppercase tracking-wider">
+                <span>Detalle de Liquidación</span>
+                <span className="font-mono text-xs">{modalConfirmarPago.internacion.lote}</span>
+              </div>
+              <div className="pt-1">
+                <p className="text-sm text-gray-700">
+                  Proveedor: <strong className="text-gray-900">{modalConfirmarPago.internacion.proveedor?.nombreCompleto}</strong>
+                </p>
+                <p className="text-xs text-gray-600">
+                  Mineral: <span className="font-semibold text-gray-800">{mineralLabel[modalConfirmarPago.tipoMineral]}</span> · Kilos Bruto: {formatKg(modalConfirmarPago.internacion?.kilosBruto)}
+                </p>
+              </div>
+              <div className="pt-2 border-t border-emerald-200/80 flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-600">Monto total a cancelar:</span>
+                <span className="text-xl font-black font-mono text-emerald-700">
+                  {formatBs(modalConfirmarPago.saldoFinal)}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-600">
+              ¿Deseas confirmar este pago? Puedes asentar el pago y descargar/imprimir el comprobante oficial en el mismo instante.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-2 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setModalConfirmarPago(null)}
+                disabled={pagandoLote}
+                className="btn btn-secondary btn-sm w-full sm:w-auto text-xs px-3"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmarPago(modalConfirmarPago, false)}
+                disabled={pagandoLote}
+                className="btn btn-secondary btn-sm w-full sm:w-auto text-xs px-3 text-emerald-800 border-emerald-300 hover:bg-emerald-50 inline-flex items-center justify-center gap-1.5"
+              >
+                {pagandoLote ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5 text-emerald-600" />}
+                <span>Solo Confirmar Pago</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmarPago(modalConfirmarPago, true)}
+                disabled={pagandoLote}
+                className="btn btn-primary btn-sm w-full sm:w-auto text-xs px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                {pagandoLote ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+                <span>Confirmar e Imprimir</span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

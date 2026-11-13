@@ -60,6 +60,22 @@ const TIPOS_MINERAL = [
     badgeClass: 'bg-amber-100 text-amber-800 border-amber-300',
     activeClass: 'border-amber-500 bg-amber-50 ring-2 ring-amber-400',
     desc: 'Mineral mixto plata y plomo'
+  },
+  {
+    value: 'PIRITA',
+    label: 'Pirita (Py)',
+    symbol: 'Py',
+    badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+    activeClass: 'border-yellow-500 bg-yellow-50 ring-2 ring-yellow-400',
+    desc: 'Mineral simple de pirita'
+  },
+  {
+    value: 'OXIDO',
+    label: 'Óxido (Ox)',
+    symbol: 'Ox',
+    badgeClass: 'bg-orange-100 text-orange-800 border-orange-300',
+    activeClass: 'border-orange-500 bg-orange-50 ring-2 ring-orange-400',
+    desc: 'Mineral simple de óxido'
   }
 ];
 
@@ -628,8 +644,10 @@ const InternMineral = () => {
     try {
       setSavingAnticipo(true);
       setAnticiposError(null);
+      const provId = anticiposLoteItem.proveedorId || anticiposLoteItem.proveedor?.id;
       await anticipoService.createAnticipo({
         internacionId: anticiposLoteItem.id,
+        proveedorId: provId ? Number(provId) : undefined,
         monto,
         glosa: nuevoAnticipoGlosa.trim() || 'Adelanto en efectivo'
       });
@@ -1113,7 +1131,7 @@ const InternMineral = () => {
                 <label className="text-sm font-semibold text-gray-800">
                   Tipo de Mineral *
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                   {TIPOS_MINERAL.map((t) => {
                     const isSelected = watchedCreateTipoMineral === t.value;
                     return (
@@ -1407,45 +1425,49 @@ const InternMineral = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="table">
-              <thead className="table-header">
-                <tr className="table-header-row">
-                  <th className="table-header-cell">Lote</th>
-                  <th className="table-header-cell">Fecha y Hora</th>
-                  <th className="table-header-cell">Proveedor</th>
-                  <th className="table-header-cell">Mineral</th>
-                  <th className="table-header-cell text-right">Kilos Bruto</th>
-                  <th className="table-header-cell text-right">Anticipo</th>
-                  <th className="table-header-cell text-center">Estado</th>
-                  <th className="table-header-cell">Operador</th>
-                  <th className="table-header-cell text-right">Acciones</th>
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-gray-200 text-xs font-bold text-gray-600 uppercase tracking-wider">
+                  <th className="py-3.5 px-4">Lote</th>
+                  <th className="py-3.5 px-4">Fecha y Hora</th>
+                  <th className="py-3.5 px-4">Proveedor</th>
+                  <th className="py-3.5 px-4 text-center">Mineral</th>
+                  <th className="py-3.5 px-4 text-right">Kilos Bruto</th>
+                  <th className="py-3.5 px-4 text-right">Anticipo</th>
+                  <th className="py-3.5 px-4 text-center">Estado</th>
+                  <th className="py-3.5 px-4">Operador</th>
+                  <th className="py-3.5 px-4 text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="table-body">
+              <tbody className="divide-y divide-gray-100 bg-white">
                 {internaciones.map((item) => (
-                  <tr key={item.id} className="table-row hover:bg-gray-50/70 transition-colors">
+                  <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
                     {/* Lote */}
-                    <td className="table-cell font-mono font-bold text-primary-700">
-                      {item.lote}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <span className="font-mono font-bold text-xs bg-slate-100 text-slate-800 border border-slate-300 px-2.5 py-1 rounded-md">
+                        {item.lote}
+                      </span>
                     </td>
 
                     {/* Fecha */}
-                    <td className="table-cell text-xs text-gray-600">
+                    <td className="py-3.5 px-4 whitespace-nowrap text-xs text-gray-600">
                       {formatFecha(item.fechaInternacion)}
                     </td>
 
                     {/* Proveedor */}
-                    <td className="table-cell">
+                    <td className="py-3.5 px-4">
                       <p className="font-semibold text-gray-900 text-sm">
                         {item.proveedor?.nombreCompleto}
                       </p>
-                      <p className="text-xs text-gray-500">CI: {item.proveedor?.ci || '—'}</p>
+                      <p className="text-xs text-gray-500 font-mono mt-0.5">
+                        CI: {item.proveedor?.ci || '—'}
+                      </p>
                     </td>
 
                     {/* Mineral */}
-                    <td className="table-cell">
+                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
                       <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${getMineralStyle(
+                        className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getMineralStyle(
                           item.tipoMineral
                         )}`}
                       >
@@ -1454,16 +1476,16 @@ const InternMineral = () => {
                     </td>
 
                     {/* Kilos Bruto */}
-                    <td className="table-cell text-right font-mono font-semibold text-gray-900">
-                      {formatKilos(item.kilosBruto)} kg
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap font-mono font-semibold text-gray-900 text-sm">
+                      {formatKilos(item.kilosBruto)} <span className="text-xs font-normal text-gray-500">kg</span>
                     </td>
 
                     {/* Anticipo */}
-                    <td className="table-cell text-right text-xs">
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap text-xs">
                       <button
                         type="button"
                         onClick={() => openAnticiposModal(item)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition-colors font-mono font-semibold"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition-colors font-mono font-semibold shadow-xs"
                         title="Ver historial o registrar entregas de anticipos para este lote"
                       >
                         <Coins className="h-3.5 w-3.5 text-emerald-600" />
@@ -1475,10 +1497,10 @@ const InternMineral = () => {
                     </td>
 
                     {/* Estado */}
-                    <td className="table-cell text-center">
+                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
                       <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          estadoLabel[item.estado]?.color || 'bg-gray-100 text-gray-800'
+                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium border ${
+                          estadoLabel[item.estado]?.color || 'bg-gray-100 text-gray-800 border-gray-200'
                         }`}
                       >
                         {estadoLabel[item.estado]?.text || item.estado}
@@ -1486,13 +1508,26 @@ const InternMineral = () => {
                     </td>
 
                     {/* Operador */}
-                    <td className="table-cell text-xs text-gray-500">
+                    <td className="py-3.5 px-4 whitespace-nowrap text-xs text-gray-500">
                       {item.usuario?.nombre || 'Balanza'}
                     </td>
 
                     {/* Acciones */}
-                    <td className="table-cell text-right">
-                      <div className="flex items-center justify-end gap-1">
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {/* Calcular pago si está en espera */}
+                        {canCalculate(item) && (
+                          <Link
+                            to="/calcular"
+                            state={{ internacionId: item.id }}
+                            className="btn btn-primary btn-sm inline-flex items-center gap-1.5 py-1 px-2.5 text-xs font-semibold shadow-xs"
+                            title="Calcular Liquidación de Pago"
+                          >
+                            <Calculator className="h-3.5 w-3.5" />
+                            <span>Calcular</span>
+                          </Link>
+                        )}
+
                         {/* Boleta o Comprobante PDF */}
                         {(() => {
                           const hasCalc = Boolean(item.calculo || item.estado === 'PAGADO' || item.estado === 'CALCULADO');
@@ -1501,10 +1536,10 @@ const InternMineral = () => {
                               type="button"
                               onClick={() => handleDownloadBoleta(item)}
                               disabled={downloadingId === item.id}
-                              className={`rounded p-1.5 transition-colors ${
+                              className={`rounded-lg p-1.5 border transition-all shadow-xs ${
                                 hasCalc
-                                  ? 'text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900'
-                                  : 'text-gray-600 hover:bg-gray-100 hover:text-primary-700'
+                                  ? 'border-emerald-200 bg-emerald-50/60 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-900'
+                                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100 hover:text-primary-700'
                               }`}
                               title={hasCalc ? "Descargar Comprobante Oficial (PDF)" : "Descargar Boleta de Recepción (PDF)"}
                             >
@@ -1521,43 +1556,18 @@ const InternMineral = () => {
                         <button
                           type="button"
                           onClick={() => openDetail(item)}
-                          className="rounded p-1.5 text-gray-600 hover:bg-gray-100 hover:text-indigo-600 transition-colors"
+                          className="rounded-lg p-1.5 border border-gray-200 bg-white text-gray-600 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-all shadow-xs"
                           title="Ver detalle completo"
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-
-                        {/* Anticipos de este lote */}
-                        <button
-                          type="button"
-                          onClick={() => openAnticiposModal(item)}
-                          className="rounded p-1.5 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800 transition-colors"
-                          title="Gestionar anticipos / historial de entregas"
-                        >
-                          <Coins className="h-4 w-4" />
-                        </button>
-
-
-
-                        {/* Calcular pago si está en espera */}
-                        {canCalculate(item) && (
-                          <Link
-                            to="/calcular"
-                            state={{ internacionId: item.id }}
-                            className="btn btn-primary btn-sm inline-flex items-center gap-1 py-1 px-2.5"
-                            title="Calcular Liquidación de Pago"
-                          >
-                            <Calculator className="h-3.5 w-3.5" />
-                            <span className="hidden md:inline">Calcular</span>
-                          </Link>
-                        )}
 
                         {/* Editar */}
                         {canEdit(item) && (
                           <button
                             type="button"
                             onClick={() => openEditModal(item)}
-                            className="rounded p-1.5 text-gray-600 hover:bg-gray-100 hover:text-amber-700 transition-colors"
+                            className="rounded-lg p-1.5 border border-gray-200 bg-white text-gray-600 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition-all shadow-xs"
                             title="Editar datos de internación"
                           >
                             <Pencil className="h-4 w-4" />
@@ -1569,7 +1579,7 @@ const InternMineral = () => {
                           <button
                             type="button"
                             onClick={() => handleDelete(item)}
-                            className="rounded p-1.5 text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
+                            className="rounded-lg p-1.5 border border-gray-200 bg-white text-gray-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all shadow-xs"
                             title="Eliminar internación"
                           >
                             <Trash2 className="h-4 w-4" />

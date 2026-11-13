@@ -12,6 +12,7 @@ import {
   FileText,
   TrendingUp,
   Coins,
+  SlidersHorizontal,
   LogOut,
   ChevronDown,
   User
@@ -65,6 +66,12 @@ const Layout = ({ children }) => {
       name: 'Calcular Pago',
       href: '/calcular',
       icon: Calculator,
+      show: canInternMineral()
+    },
+    {
+      name: 'Cotizador',
+      href: '/cotizador',
+      icon: SlidersHorizontal,
       show: canInternMineral()
     },
     {

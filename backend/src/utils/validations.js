@@ -131,9 +131,9 @@ export const internacionSchemas = {
         'number.positive': 'El ID del proveedor debe ser positivo',
         'any.required': 'El proveedor es obligatorio'
       }),
-    tipoMineral: Joi.string().valid('PLATA', 'PLOMO', 'COMPLEJO').required()
+    tipoMineral: Joi.string().valid('PLATA', 'PLOMO', 'COMPLEJO', 'PIRITA', 'OXIDO').required()
       .messages({
-        'any.only': 'El tipo de mineral debe ser PLATA, PLOMO o COMPLEJO',
+        'any.only': 'El tipo de mineral debe ser PLATA, PLOMO, COMPLEJO, PIRITA u OXIDO',
         'any.required': 'El tipo de mineral es obligatorio'
       }),
     kilosBruto: Joi.number().positive().precision(3).required()
@@ -163,9 +163,9 @@ export const internacionSchemas = {
         'number.base': 'Debes seleccionar un proveedor válido',
         'number.positive': 'El ID del proveedor debe ser positivo'
       }),
-    tipoMineral: Joi.string().valid('PLATA', 'PLOMO', 'COMPLEJO').optional()
+    tipoMineral: Joi.string().valid('PLATA', 'PLOMO', 'COMPLEJO', 'PIRITA', 'OXIDO').optional()
       .messages({
-        'any.only': 'El tipo de mineral debe ser PLATA, PLOMO o COMPLEJO'
+        'any.only': 'El tipo de mineral debe ser PLATA, PLOMO, COMPLEJO, PIRITA u OXIDO'
       }),
     kilosBruto: Joi.number().positive().precision(3).optional()
       .messages({
@@ -190,16 +190,16 @@ export const internacionSchemas = {
 export const calculoSchemas = {
   create: Joi.object({
     internacionId: Joi.number().integer().positive().required(),
-    tipoMineral: Joi.string().valid('PLATA', 'PLOMO', 'COMPLEJO').required(),
+    tipoMineral: Joi.string().valid('PLATA', 'PLOMO', 'COMPLEJO', 'PIRITA', 'OXIDO').required(),
     
-    // Para mineral simple (PLATA o PLOMO)
+    // Para mineral simple (PLATA, PLOMO, PIRITA u OXIDO)
     ley: Joi.number().positive().precision(3).when('tipoMineral', {
-      is: Joi.string().valid('PLATA', 'PLOMO'),
+      is: Joi.string().valid('PLATA', 'PLOMO', 'PIRITA', 'OXIDO'),
       then: Joi.required(),
       otherwise: Joi.forbidden()
     }),
     valorEscala: Joi.number().positive().precision(2).when('tipoMineral', {
-      is: Joi.string().valid('PLATA', 'PLOMO'),
+      is: Joi.string().valid('PLATA', 'PLOMO', 'PIRITA', 'OXIDO'),
       then: Joi.required(),
       otherwise: Joi.forbidden()
     }),
@@ -249,11 +249,14 @@ export const calculoSchemas = {
 // Validaciones para Anticipos
 export const anticipoSchemas = {
   create: Joi.object({
-    proveedorId: Joi.number().integer().positive().required()
-      .messages({
-        'any.required': 'El proveedor es obligatorio',
-        'number.base': 'El ID de proveedor debe ser un número entero'
-      }),
+    proveedorId: Joi.number().integer().positive().when('internacionId', {
+      is: Joi.exist().not(null),
+      then: Joi.optional(),
+      otherwise: Joi.required()
+    }).messages({
+      'any.required': 'El proveedor es obligatorio',
+      'number.base': 'El ID de proveedor debe ser un número entero'
+    }),
     internacionId: Joi.number().integer().positive().optional().allow(null),
     monto: Joi.number().positive().precision(2).required()
       .messages({

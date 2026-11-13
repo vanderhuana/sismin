@@ -697,6 +697,9 @@ router.get('/:id/boleta', async (req, res, next) => {
     const kilosBrutoNum = Math.trunc(Number(internacion.kilosBruto) || 0);
     const kilosBrutoStr = `${kilosBrutoNum.toLocaleString('es-BO')} kg`;
 
+    const kilosNetoNum = hasCalculo ? Math.trunc(Number(calculo.kilosNeto) || 0) : null;
+    const kilosNetoStr = kilosNetoNum !== null ? `${kilosNetoNum.toLocaleString('es-BO')} kg` : null;
+
     // 4. Bloque de Datos Generales (Líneas punteadas)
     let curY = 56;
     const itemHeight = 15.5;
@@ -725,6 +728,9 @@ router.get('/:id/boleta', async (req, res, next) => {
     renderDottedField('Ley:', leyTexto);
     renderDottedField('Mineral:', tipoMineral);
     renderDottedField('Kilos Bruto:', kilosBrutoStr);
+    if (hasCalculo && kilosNetoStr) {
+      renderDottedField('Kilos Neto:', kilosNetoStr, true);
+    }
 
     curY += 2;
 

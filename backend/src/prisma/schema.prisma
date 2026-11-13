@@ -121,6 +121,8 @@ enum TipoMineral {
   PLATA
   PLOMO
   COMPLEJO
+  PIRITA
+  OXIDO
 }
 
 enum EstadoInternacion {

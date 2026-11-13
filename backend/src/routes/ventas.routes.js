@@ -92,7 +92,7 @@ router.get('/disponibles', async (req, res, next) => {
       let ley_pb = null;
       let promedio_pb = null;
 
-      if (it.tipoMineral === 'PLATA') {
+      if (it.tipoMineral === 'PLATA' || it.tipoMineral === 'PIRITA' || it.tipoMineral === 'OXIDO') {
         ley_ag = Math.trunc(Number(calc?.ley || 0));
         promedio_ag = Math.trunc(peso * ley_ag);
       } else if (it.tipoMineral === 'PLOMO') {
@@ -237,7 +237,7 @@ router.post('/', async (req, res, next) => {
     let mineralFinal = tipoMineral;
     const tiposEnLotes = [...new Set(internaciones.map((it) => it.tipoMineral))];
 
-    if (!mineralFinal || mineralFinal === 'TODOS' || !['PLATA', 'PLOMO', 'COMPLEJO'].includes(mineralFinal)) {
+    if (!mineralFinal || mineralFinal === 'TODOS' || !['PLATA', 'PLOMO', 'COMPLEJO', 'PIRITA', 'OXIDO'].includes(mineralFinal)) {
       if (tiposEnLotes.length === 1) {
         mineralFinal = tiposEnLotes[0];
       } else if (tiposEnLotes.includes('COMPLEJO') || (tiposEnLotes.includes('PLATA') && tiposEnLotes.includes('PLOMO'))) {
@@ -264,7 +264,7 @@ router.post('/', async (req, res, next) => {
 
       // Calcular según el tipo de mineral real de cada internación
       const minLote = it.tipoMineral;
-      if (minLote === 'PLATA') {
+      if (minLote === 'PLATA' || minLote === 'PIRITA' || minLote === 'OXIDO') {
         leyAg = Math.trunc(Number(calc?.ley || 0));
         promAg = Math.trunc(peso * leyAg);
       } else if (minLote === 'PLOMO') {

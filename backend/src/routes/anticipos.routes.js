@@ -313,6 +313,17 @@ router.get('/internacion/:internacionId', async (req, res, next) => {
  */
 router.post('/', async (req, res, next) => {
   try {
+    // Si viene asociado a un lote/internación y falta proveedorId, inferirlo automáticamente
+    if (req.body.internacionId && (!req.body.proveedorId || isNaN(Number(req.body.proveedorId)))) {
+      const it = await req.prisma.internacion.findUnique({
+        where: { id: parseInt(req.body.internacionId, 10) },
+        select: { proveedorId: true }
+      });
+      if (it && it.proveedorId) {
+        req.body.proveedorId = it.proveedorId;
+      }
+    }
+
     const data = validateData(anticipoSchemas.create, req.body);
     const montoTrunc = Math.trunc(Number(data.monto) || 0);
 
@@ -320,17 +331,10 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'El monto del anticipo debe ser mayor a 0' });
     }
 
-    // Validar existencia del proveedor
-    const proveedor = await req.prisma.proveedor.findUnique({
-      where: { id: data.proveedorId }
-    });
-
-    if (!proveedor) {
-      return res.status(404).json({ error: 'Proveedor no encontrado' });
-    }
-
     // Si viene asociado a un lote/internación, verificarlo
     let internacion = null;
+    let proveedorIdFinal = data.proveedorId;
+
     if (data.internacionId) {
       internacion = await req.prisma.internacion.findUnique({
         where: { id: data.internacionId },
@@ -346,6 +350,19 @@ router.post('/', async (req, res, next) => {
           error: 'No se pueden registrar anticipos en un lote que ya ha sido completamente pagado.'
         });
       }
+
+      if (!proveedorIdFinal) {
+        proveedorIdFinal = internacion.proveedorId;
+      }
+    }
+
+    // Validar existencia del proveedor
+    const proveedor = await req.prisma.proveedor.findUnique({
+      where: { id: proveedorIdFinal }
+    });
+
+    if (!proveedor) {
+      return res.status(404).json({ error: 'Proveedor no encontrado' });
     }
 
     const fechaAnticipo = data.fecha ? new Date(data.fecha) : new Date();
@@ -356,7 +373,7 @@ router.post('/', async (req, res, next) => {
       const nuevoAnticipo = await prisma.anticipo.create({
         data: {
           codigoVale,
-          proveedorId: data.proveedorId,
+          proveedorId: proveedorIdFinal,
           internacionId: data.internacionId || null,
           monto: montoTrunc,
           saldoPendiente: montoTrunc,
