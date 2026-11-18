@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Providers from './pages/Providers';
 import InternMineral from './pages/InternMineral';
+import InternacionesRealizadas from './pages/InternacionesRealizadas';
 import CalculatePay from './pages/CalculatePay';
 import MineralSales from './pages/MineralSales';
 import Anticipos from './pages/Anticipos';
@@ -58,6 +59,7 @@ function App() {
                     <Route path="/usuarios" element={<Users />} />
                     <Route path="/proveedores" element={<Providers />} />
                     <Route path="/internar" element={<InternMineral />} />
+                    <Route path="/internaciones-realizadas" element={<InternacionesRealizadas />} />
                     <Route path="/anticipos" element={<Anticipos />} />
                     <Route path="/calcular" element={<CalculatePay />} />
                     <Route path="/cotizador" element={<Cotizador />} />

@@ -115,6 +115,20 @@ export const providerSchemas = {
   })
 };
 
+const TIPOS_MINERAL_LIST = [
+  'PLATA', 'PLATA_OXIDO', 'PLATA_PIRITA',
+  'PLOMO', 'PLOMO_OXIDO', 'PLOMO_PIRITA',
+  'ESTANO', 'ESTANO_OXIDO', 'ESTANO_PIRITA',
+  'COMPLEJO', 'PIRITA', 'OXIDO'
+];
+
+const MINERALES_SIMPLES_LIST = [
+  'PLATA', 'PLATA_OXIDO', 'PLATA_PIRITA',
+  'PLOMO', 'PLOMO_OXIDO', 'PLOMO_PIRITA',
+  'ESTANO', 'ESTANO_OXIDO', 'ESTANO_PIRITA',
+  'PIRITA', 'OXIDO'
+];
+
 // Validaciones para Internación
 export const internacionSchemas = {
   create: Joi.object({
@@ -131,9 +145,9 @@ export const internacionSchemas = {
         'number.positive': 'El ID del proveedor debe ser positivo',
         'any.required': 'El proveedor es obligatorio'
       }),
-    tipoMineral: Joi.string().valid('PLATA', 'PLOMO', 'COMPLEJO', 'PIRITA', 'OXIDO').required()
+    tipoMineral: Joi.string().valid(...TIPOS_MINERAL_LIST).required()
       .messages({
-        'any.only': 'El tipo de mineral debe ser PLATA, PLOMO, COMPLEJO, PIRITA u OXIDO',
+        'any.only': 'El tipo de mineral no es válido',
         'any.required': 'El tipo de mineral es obligatorio'
       }),
     kilosBruto: Joi.number().positive().precision(3).required()
@@ -163,9 +177,9 @@ export const internacionSchemas = {
         'number.base': 'Debes seleccionar un proveedor válido',
         'number.positive': 'El ID del proveedor debe ser positivo'
       }),
-    tipoMineral: Joi.string().valid('PLATA', 'PLOMO', 'COMPLEJO', 'PIRITA', 'OXIDO').optional()
+    tipoMineral: Joi.string().valid(...TIPOS_MINERAL_LIST).optional()
       .messages({
-        'any.only': 'El tipo de mineral debe ser PLATA, PLOMO, COMPLEJO, PIRITA u OXIDO'
+        'any.only': 'El tipo de mineral no es válido'
       }),
     kilosBruto: Joi.number().positive().precision(3).optional()
       .messages({
@@ -190,16 +204,16 @@ export const internacionSchemas = {
 export const calculoSchemas = {
   create: Joi.object({
     internacionId: Joi.number().integer().positive().required(),
-    tipoMineral: Joi.string().valid('PLATA', 'PLOMO', 'COMPLEJO', 'PIRITA', 'OXIDO').required(),
+    tipoMineral: Joi.string().valid(...TIPOS_MINERAL_LIST).required(),
     
-    // Para mineral simple (PLATA, PLOMO, PIRITA u OXIDO)
+    // Para mineral simple (PLATA, PLOMO, ESTANO, PIRITA u OXIDO)
     ley: Joi.number().positive().precision(3).when('tipoMineral', {
-      is: Joi.string().valid('PLATA', 'PLOMO', 'PIRITA', 'OXIDO'),
+      is: Joi.string().valid(...MINERALES_SIMPLES_LIST),
       then: Joi.required(),
       otherwise: Joi.forbidden()
     }),
     valorEscala: Joi.number().positive().precision(2).when('tipoMineral', {
-      is: Joi.string().valid('PLATA', 'PLOMO', 'PIRITA', 'OXIDO'),
+      is: Joi.string().valid(...MINERALES_SIMPLES_LIST),
       then: Joi.required(),
       otherwise: Joi.forbidden()
     }),

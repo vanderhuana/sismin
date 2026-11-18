@@ -12,7 +12,7 @@ datasource db {
 
 model Usuario {
   id        Int      @id @default(autoincrement())
-  nombre    String   @db.VarChar(100)
+  nombre    String   @unique @db.VarChar(100)
   password  String   @db.VarChar(255)
   rol       RolUsuario @default(MODERADO)
   activo    Boolean  @default(true)
@@ -20,7 +20,10 @@ model Usuario {
   updatedAt DateTime @updatedAt
 
   // Relaciones
-  internaciones Internacion[]
+  internaciones   Internacion[]
+  anticipos       Anticipo[]
+  ventasGenerales VentaLoteGeneral[]
+  cobrosAnticipo  AnticipoDescuento[]
 
   @@map("usuarios")
 }
@@ -28,7 +31,7 @@ model Usuario {
 model Proveedor {
   id             Int      @id @default(autoincrement())
   nombreCompleto String   @db.VarChar(200)
-  ci             String   @unique @db.VarChar(20)
+  ci             String?  @unique @db.VarChar(20)
   telefono       String?  @db.VarChar(20)
   direccion      String?  @db.Text
   tipo           TipoProveedor @default(PERSONA_NATURAL)
@@ -38,6 +41,7 @@ model Proveedor {
 
   // Relaciones
   internaciones Internacion[]
+  anticipos     Anticipo[]
 
   @@map("proveedores")
 }
@@ -61,6 +65,8 @@ model Internacion {
   proveedor         Proveedor @relation(fields: [proveedorId], references: [id])
   usuario           Usuario   @relation(fields: [usuarioId], references: [id])
   calculo           Calculo?
+  anticipos         Anticipo[]
+  ventaDetalles     VentaLoteDetalle[]
 
   @@map("internaciones")
 }
@@ -87,7 +93,9 @@ model Calculo {
   valorBruto            Decimal  @db.Decimal(12,2) // Calculado
   regaliasPorcentaje    Decimal  @default(10) @db.Decimal(5,2)
   regaliasMonto         Decimal  @db.Decimal(12,2) // Calculado
-  anticipos             Decimal  @default(0) @db.Decimal(10,2)
+  anticipos             Decimal  @default(0) @db.Decimal(10,2) // Total de anticipos (báscula + proveedor)
+  anticipoBascula       Decimal  @default(0) @db.Decimal(10,2) // Anticipo registrado en báscula
+  anticipoProveedor     Decimal  @default(0) @db.Decimal(10,2) // Anticipo descontado de cuenta
   transporte            Decimal  @default(0) @db.Decimal(10,2)
   saldoFinal            Decimal  @db.Decimal(12,2) // Calculado
   
@@ -102,8 +110,106 @@ model Calculo {
 
   // Relaciones
   internacion           Internacion @relation(fields: [internacionId], references: [id])
+  descuentosAnticipo    AnticipoDescuento[]
 
   @@map("calculos")
+}
+
+model Anticipo {
+  id                Int                 @id @default(autoincrement())
+  codigoVale        String?             @unique @db.VarChar(50)
+  monto             Decimal             @db.Decimal(10,2)
+  saldoPendiente    Decimal             @default(0) @db.Decimal(10,2)
+  estado            EstadoAnticipo      @default(PENDIENTE)
+  fecha             DateTime            @default(now())
+  observacion       String?             @db.Text
+  glosa             String?             @db.VarChar(255)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  // Foreign Keys
+  internacionId     Int?
+  proveedorId       Int?
+  usuarioId         Int?
+
+  // Relaciones
+  internacion       Internacion?        @relation(fields: [internacionId], references: [id], onDelete: Cascade)
+  proveedor         Proveedor?          @relation(fields: [proveedorId], references: [id])
+  usuario           Usuario?            @relation(fields: [usuarioId], references: [id])
+  descuentos        AnticipoDescuento[]
+
+  @@map("anticipos")
+}
+
+model AnticipoDescuento {
+  id                Int       @id @default(autoincrement())
+  anticipoId        Int
+  calculoId         Int?
+  montoDescontado   Decimal   @db.Decimal(10,2)
+  fecha             DateTime  @default(now())
+  tipoPago          String?   @default("LIQUIDACION_MINERAL") @db.VarChar(50)
+  glosa             String?   @db.VarChar(255)
+  comprobanteNumero String?   @db.VarChar(50)
+  usuarioId         Int?
+
+  anticipo          Anticipo  @relation(fields: [anticipoId], references: [id], onDelete: Cascade)
+  calculo           Calculo?  @relation(fields: [calculoId], references: [id], onDelete: Cascade)
+  usuario           Usuario?  @relation(fields: [usuarioId], references: [id])
+
+  @@map("anticipos_descuentos")
+}
+
+model VentaLoteGeneral {
+  id                    Int       @id @default(autoincrement())
+  numeroLoteGeneral     String    @unique
+  fecha                 DateTime  @default(now())
+  fechaInicioFiltro     DateTime?
+  fechaFinFiltro        DateTime?
+  tipoMineral           TipoMineral
+  leyReferenciaAg       Decimal?  @db.Decimal(10,3)
+  leyReferenciaPb       Decimal?  @db.Decimal(10,3)
+  
+  // Totales calculados
+  totalPesoNeto         Decimal   @db.Decimal(12,3)
+  totalPromedioAg       Decimal?  @db.Decimal(14,3)
+  totalPromedioPb       Decimal?  @db.Decimal(14,3)
+  leyPonderadaAg        Decimal?  @db.Decimal(10,4)
+  leyPonderadaPb        Decimal?  @db.Decimal(10,4)
+  costoTotalCompra      Decimal?  @db.Decimal(14,2)
+  
+  observaciones         String?   @db.Text
+  estado                String    @default("CERRADO")
+  
+  usuarioId             Int?
+  usuario               Usuario?  @relation(fields: [usuarioId], references: [id])
+  
+  detalles              VentaLoteDetalle[]
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("ventas_lote_general")
+}
+
+model VentaLoteDetalle {
+  id                    Int              @id @default(autoincrement())
+  ventaId               Int
+  internacionId         Int?
+  
+  numeroLote            String
+  pesoNeto              Decimal          @db.Decimal(12,3)
+  leyAg                 Decimal?         @db.Decimal(10,3)
+  promedioAg            Decimal?         @db.Decimal(14,3)
+  leyPb                 Decimal?         @db.Decimal(10,3)
+  promedioPb            Decimal?         @db.Decimal(14,3)
+  costoCompra           Decimal?         @db.Decimal(12,2)
+  
+  venta                 VentaLoteGeneral @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  internacion           Internacion?     @relation(fields: [internacionId], references: [id])
+  
+  createdAt             DateTime         @default(now())
+
+  @@map("ventas_lote_detalles")
 }
 
 // Enums
@@ -119,7 +225,14 @@ enum TipoProveedor {
 
 enum TipoMineral {
   PLATA
+  PLATA_OXIDO
+  PLATA_PIRITA
   PLOMO
+  PLOMO_OXIDO
+  PLOMO_PIRITA
+  ESTANO
+  ESTANO_OXIDO
+  ESTANO_PIRITA
   COMPLEJO
   PIRITA
   OXIDO
@@ -134,4 +247,11 @@ enum EstadoInternacion {
 enum EstadoPago {
   PENDIENTE
   PAGADO
+}
+
+enum EstadoAnticipo {
+  PENDIENTE
+  PARCIAL
+  COBRADO
+  ANULADO
 }

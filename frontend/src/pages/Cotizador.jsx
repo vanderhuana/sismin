@@ -14,8 +14,10 @@ import {
   Tag, 
   Scale, 
   SlidersHorizontal,
-  ArrowRight
+  ArrowRight,
+  Check
 } from 'lucide-react';
+import Modal from '../components/ui/Modal';
 import { providerService, calculoService, handleApiError } from '../services/api';
 import { calcularPagoPreview, formatBs, formatKg } from '../utils/calculations';
 
@@ -75,6 +77,16 @@ const Cotizador = () => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
+  // Estado para modal de estimación de Valor de Escala
+  const [modalEscalaOpen, setModalEscalaOpen] = useState(false);
+  const [modalEscalaData, setModalEscalaData] = useState({
+    fieldName: 'valorEscala',
+    ley: '',
+    porcentaje: 75,
+    cotizacion: 48,
+    tipoCambio: 11
+  });
+
   const { register, watch, reset, setValue, formState: { errors } } = useForm({
     defaultValues: {
       lote: 'COT-001',
@@ -93,6 +105,35 @@ const Cotizador = () => {
   });
 
   const formValues = watch();
+
+  // Cálculo en tiempo real de la fórmula de valor de escala: (Ley * 3.215 * % * cot * tc) / 1000
+  const resultadoEscalaCalculado = useMemo(() => {
+    const leyNum = parseFloat(modalEscalaData.ley) || 0;
+    const factorEstatico = 3.215;
+    const pct = (parseFloat(modalEscalaData.porcentaje) || 0) / 100;
+    const cot = parseFloat(modalEscalaData.cotizacion) || 0;
+    const tc = parseFloat(modalEscalaData.tipoCambio) || 0;
+
+    const val = (leyNum * factorEstatico * pct * cot * tc) / 1000;
+    return Math.round(val);
+  }, [modalEscalaData]);
+
+  const handleOpenModalEscala = (fieldName = 'valorEscala', leyField = 'ley') => {
+    const currentLey = formValues[leyField] || '';
+    setModalEscalaData({
+      fieldName,
+      ley: currentLey,
+      porcentaje: 75,
+      cotizacion: 48,
+      tipoCambio: 11
+    });
+    setModalEscalaOpen(true);
+  };
+
+  const handleAplicarEscala = (resultado) => {
+    setValue(modalEscalaData.fieldName, resultado, { shouldDirty: true, shouldValidate: true });
+    setModalEscalaOpen(false);
+  };
 
   // Cargar lista de proveedores activos (solo lectura)
   useEffect(() => {
@@ -502,9 +543,20 @@ const Cotizador = () => {
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-bold text-gray-700">
-                      Valor Escala *
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-bold text-gray-700">
+                        Valor Escala *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenModalEscala('valorEscala', 'ley')}
+                        className="text-xs font-semibold text-primary-600 hover:text-primary-800 flex items-center gap-1 hover:underline transition-colors"
+                        title="Calcular estimación con fórmula (Ley × 3.215 × % × cot × tc ÷ 1000)"
+                      >
+                        <Calculator className="h-3.5 w-3.5" />
+                        <span>Estimar escala</span>
+                      </button>
+                    </div>
                     <input
                       type="number"
                       step="1"
@@ -531,7 +583,18 @@ const Cotizador = () => {
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs text-gray-700 font-medium">Valor Escala Plata *</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs text-gray-700 font-medium">Valor Escala Plata *</label>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenModalEscala('valorEscalaPlata', 'leyPlata')}
+                          className="text-xs font-semibold text-primary-600 hover:text-primary-800 flex items-center gap-1 hover:underline"
+                          title="Calcular estimación para plata"
+                        >
+                          <Calculator className="h-3 w-3" />
+                          <span>Estimar</span>
+                        </button>
+                      </div>
                       <input
                         type="number"
                         step="1"
@@ -555,7 +618,18 @@ const Cotizador = () => {
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs text-gray-700 font-medium">Valor Escala Plomo *</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs text-gray-700 font-medium">Valor Escala Plomo *</label>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenModalEscala('valorEscalaPlomo', 'leyPlomo')}
+                          className="text-xs font-semibold text-primary-600 hover:text-primary-800 flex items-center gap-1 hover:underline"
+                          title="Calcular estimación para plomo"
+                        >
+                          <Calculator className="h-3 w-3" />
+                          <span>Estimar</span>
+                        </button>
+                      </div>
                       <input
                         type="number"
                         step="1"
@@ -756,6 +830,146 @@ const Cotizador = () => {
           </div>
         </div>
       </div>
+
+      {/* MODAL SIMPLE PARA ESTIMAR VALOR DE ESCALA */}
+      {modalEscalaOpen && (
+        <Modal
+          open={modalEscalaOpen}
+          onClose={() => setModalEscalaOpen(false)}
+          title="Calculadora Rápida de Valor de Escala"
+          size="md"
+        >
+          <div className="space-y-4">
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-900">
+              <p className="font-bold flex items-center gap-1.5 mb-0.5">
+                <Calculator className="h-4 w-4 text-blue-600" />
+                <span>Fórmula de Estimación:</span>
+              </p>
+              <p className="font-mono text-[11px] text-blue-800">
+                (Ley × 3.215 × % Recuperación × Cotización × Tipo de Cambio) ÷ 1000
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              {/* Ley */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  Ley (DM / %):
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={modalEscalaData.ley}
+                  onChange={(e) => setModalEscalaData((prev) => ({ ...prev, ley: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
+                  className="input input-sm text-xs font-mono font-bold w-full"
+                  placeholder="Ej: 30"
+                />
+              </div>
+
+              {/* Factor Estático */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  Factor Fijo:
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  value="3.215 (estático)"
+                  className="input input-sm text-xs font-mono bg-gray-100 text-gray-600 cursor-not-allowed w-full border-gray-200"
+                />
+              </div>
+
+              {/* % Recuperación */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  % Recuperación / Pago:
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="any"
+                    value={modalEscalaData.porcentaje}
+                    onChange={(e) => setModalEscalaData((prev) => ({ ...prev, porcentaje: e.target.value }))}
+                    onFocus={(e) => e.target.select()}
+                    className="input input-sm text-xs font-mono font-bold w-full pr-7"
+                    placeholder="75"
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 font-bold">%</span>
+                </div>
+              </div>
+
+              {/* Cotización */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  Cotización Internacional (USD):
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={modalEscalaData.cotizacion}
+                  onChange={(e) => setModalEscalaData((prev) => ({ ...prev, cotizacion: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
+                  className="input input-sm text-xs font-mono font-bold w-full"
+                  placeholder="Ej: 48"
+                />
+              </div>
+
+              {/* Tipo de Cambio */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  Tipo de Cambio (T.C.):
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={modalEscalaData.tipoCambio}
+                  onChange={(e) => setModalEscalaData((prev) => ({ ...prev, tipoCambio: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
+                  className="input input-sm text-xs font-mono font-bold w-full"
+                  placeholder="Ej: 11"
+                />
+              </div>
+
+              {/* Tarjeta de Resultado Calculado */}
+              <div className="flex flex-col justify-end">
+                <div className="rounded-lg bg-emerald-50 border-2 border-emerald-300 p-2.5 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-emerald-800 font-bold block uppercase">Valor Escala Estimado:</span>
+                    <span className="text-[11px] text-gray-600 font-mono">Bs el Kilo</span>
+                  </div>
+                  <span className="text-2xl font-black font-mono text-emerald-700">
+                    {resultadoEscalaCalculado}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Desglose de operaciones */}
+            <div className="rounded bg-slate-50 border border-slate-200 p-2.5 text-[11px] text-slate-700 font-mono">
+              Operación: ({Number(modalEscalaData.ley) || 0} × 3.215 × {(Number(modalEscalaData.porcentaje) || 0) / 100} × {Number(modalEscalaData.cotizacion) || 0} × {Number(modalEscalaData.tipoCambio) || 0}) ÷ 1000 = <strong className="text-emerald-700 font-bold text-xs">{resultadoEscalaCalculado} Bs/kg</strong>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setModalEscalaOpen(false)}
+                className="btn btn-secondary btn-sm text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAplicarEscala(resultadoEscalaCalculado)}
+                className="btn btn-primary btn-sm text-xs font-bold inline-flex items-center gap-1.5 shadow-sm"
+              >
+                <Check className="h-3.5 w-3.5" />
+                <span>Aplicar al Valor de Escala ({resultadoEscalaCalculado})</span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

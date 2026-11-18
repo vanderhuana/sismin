@@ -630,7 +630,7 @@ router.post('/simular-pdf', async (req, res, next) => {
     let leyTexto = '—';
     if (tipoMineral === 'COMPLEJO') {
       leyTexto = `Ag: ${leyPlata ?? '—'} DM  |  Pb: ${leyPlomo ?? '—'} %`;
-    } else if (tipoMineral === 'PLOMO') {
+    } else if (tipoMineral.startsWith('PLOMO') || tipoMineral.startsWith('ESTANO')) {
       leyTexto = `${ley ?? '—'} %`;
     } else {
       leyTexto = `${ley ?? '—'} DM`;
@@ -724,7 +724,7 @@ router.get('/:id/comprobante', async (req, res, next) => {
     let leyTexto = '—';
     if (calculo.tipoMineral === 'COMPLEJO') {
       leyTexto = `Ag: ${calculo.leyPlata ?? '—'} DM  |  Pb: ${calculo.leyPlomo ?? '—'} %`;
-    } else if (calculo.tipoMineral === 'PLOMO') {
+    } else if (calculo.tipoMineral.startsWith('PLOMO') || calculo.tipoMineral.startsWith('ESTANO')) {
       leyTexto = `${calculo.ley ?? '—'} %`;
     } else {
       leyTexto = `${calculo.ley ?? '—'} DM`;

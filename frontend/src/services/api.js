@@ -187,8 +187,10 @@ export const internacionService = {
     return response;
   },
   
-  getNextLote: async () => {
-    const response = await api.get('/internaciones/next-lote');
+  getNextLote: async (base = null) => {
+    const response = await api.get('/internaciones/next-lote', {
+      params: base ? { base } : {}
+    });
     return response.data;
   },
   
@@ -266,6 +268,18 @@ export const anticipoService = {
 
   downloadValePdf: async (id) => {
     const response = await api.get(`/anticipos/${id}/vale-pdf`, {
+      responseType: 'blob'
+    });
+    return response;
+  },
+
+  amortizarDirecto: async (data) => {
+    const response = await api.post('/anticipos/amortizar-directo', data);
+    return response.data;
+  },
+
+  downloadReciboCobroPdf: async (comprobanteNumero) => {
+    const response = await api.get(`/anticipos/recibo-cobro/${encodeURIComponent(comprobanteNumero)}/pdf`, {
       responseType: 'blob'
     });
     return response;

@@ -36,48 +36,98 @@ import {
   Tag
 } from 'lucide-react';
 
-const TIPOS_MINERAL = [
+export const ELEMENTOS_BASE = [
   {
-    value: 'PLATA',
+    key: 'PLATA',
     label: 'Plata (Ag)',
     symbol: 'Ag',
-    badgeClass: 'bg-slate-100 text-slate-800 border-slate-300',
-    activeClass: 'border-slate-500 bg-slate-50 ring-2 ring-slate-400',
-    desc: 'Mineral simple de plata'
+    badgeClass: 'bg-blue-100 text-blue-800 border-blue-300',
+    activeClass: 'border-blue-500 bg-blue-50 ring-2 ring-blue-400',
+    desc: 'Mineral de plata (Ley en DM)'
   },
   {
-    value: 'PLOMO',
+    key: 'PLOMO',
     label: 'Plomo (Pb)',
     symbol: 'Pb',
-    badgeClass: 'bg-zinc-100 text-zinc-800 border-zinc-300',
-    activeClass: 'border-zinc-500 bg-zinc-50 ring-2 ring-zinc-400',
-    desc: 'Mineral simple de plomo'
+    badgeClass: 'bg-violet-100 text-violet-800 border-violet-300',
+    activeClass: 'border-violet-500 bg-violet-50 ring-2 ring-violet-400',
+    desc: 'Mineral de plomo (Ley en %)'
   },
   {
-    value: 'COMPLEJO',
+    key: 'ESTANO',
+    label: 'Estaño (Sn)',
+    symbol: 'Sn',
+    badgeClass: 'bg-teal-100 text-teal-800 border-teal-300',
+    activeClass: 'border-teal-500 bg-teal-50 ring-2 ring-teal-400',
+    desc: 'Mineral de estaño (Ley en %)'
+  },
+  {
+    key: 'COMPLEJO',
     label: 'Complejo (Ag + Pb)',
     symbol: 'Ag+Pb',
-    badgeClass: 'bg-amber-100 text-amber-800 border-amber-300',
-    activeClass: 'border-amber-500 bg-amber-50 ring-2 ring-amber-400',
+    badgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+    activeClass: 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-400',
     desc: 'Mineral mixto plata y plomo'
-  },
-  {
-    value: 'PIRITA',
-    label: 'Pirita (Py)',
-    symbol: 'Py',
-    badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-    activeClass: 'border-yellow-500 bg-yellow-50 ring-2 ring-yellow-400',
-    desc: 'Mineral simple de pirita'
-  },
-  {
-    value: 'OXIDO',
-    label: 'Óxido (Ox)',
-    symbol: 'Ox',
-    badgeClass: 'bg-orange-100 text-orange-800 border-orange-300',
-    activeClass: 'border-orange-500 bg-orange-50 ring-2 ring-orange-400',
-    desc: 'Mineral simple de óxido'
   }
 ];
+
+export const VARIANTES_MINERAL = [
+  { key: 'NORMAL', label: 'Normal', suffix: '', desc: 'Estándar' },
+  { key: 'OXIDO', label: 'Óxido (Ox)', suffix: '_OXIDO', desc: 'Mineral oxidado' },
+  { key: 'PIRITA', label: 'Pirita (Py)', suffix: '_PIRITA', desc: 'Con pirita' }
+];
+
+export const TIPOS_MINERAL = [
+  { value: 'PLATA', label: 'Plata (Ag)', symbol: 'Ag', badgeClass: 'bg-blue-100 text-blue-800 border-blue-300' },
+  { value: 'PLATA_OXIDO', label: 'Plata Óxido', symbol: 'Ag-Ox', badgeClass: 'bg-orange-100 text-orange-800 border-orange-300' },
+  { value: 'PLATA_PIRITA', label: 'Plata Pirita', symbol: 'Ag-Py', badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  { value: 'PLOMO', label: 'Plomo (Pb)', symbol: 'Pb', badgeClass: 'bg-violet-100 text-violet-800 border-violet-300' },
+  { value: 'PLOMO_OXIDO', label: 'Plomo Óxido', symbol: 'Pb-Ox', badgeClass: 'bg-orange-100 text-orange-900 border-orange-400' },
+  { value: 'PLOMO_PIRITA', label: 'Plomo Pirita', symbol: 'Pb-Py', badgeClass: 'bg-amber-100 text-amber-900 border-amber-400' },
+  { value: 'ESTANO', label: 'Estaño (Sn)', symbol: 'Sn', badgeClass: 'bg-teal-100 text-teal-800 border-teal-300' },
+  { value: 'ESTANO_OXIDO', label: 'Estaño Óxido', symbol: 'Sn-Ox', badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-400' },
+  { value: 'ESTANO_PIRITA', label: 'Estaño Pirita', symbol: 'Sn-Py', badgeClass: 'bg-lime-100 text-lime-900 border-lime-400' },
+  { value: 'COMPLEJO', label: 'Complejo (Ag + Pb)', symbol: 'Ag+Pb', badgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-300' },
+  { value: 'PIRITA', label: 'Pirita (Py)', symbol: 'Py', badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  { value: 'OXIDO', label: 'Óxido (Ox)', symbol: 'Ox', badgeClass: 'bg-orange-100 text-orange-800 border-orange-300' }
+];
+
+export const parseTipoMineral = (tipo) => {
+  if (!tipo) return { base: 'PLATA', variedad: 'NORMAL' };
+  if (tipo === 'COMPLEJO') return { base: 'COMPLEJO', variedad: 'NORMAL' };
+  if (tipo === 'PIRITA') return { base: 'PLATA', variedad: 'PIRITA' };
+  if (tipo === 'OXIDO') return { base: 'PLATA', variedad: 'OXIDO' };
+  
+  if (tipo.startsWith('PLATA')) {
+    if (tipo.endsWith('_OXIDO')) return { base: 'PLATA', variedad: 'OXIDO' };
+    if (tipo.endsWith('_PIRITA')) return { base: 'PLATA', variedad: 'PIRITA' };
+    return { base: 'PLATA', variedad: 'NORMAL' };
+  }
+  if (tipo.startsWith('PLOMO')) {
+    if (tipo.endsWith('_OXIDO')) return { base: 'PLOMO', variedad: 'OXIDO' };
+    if (tipo.endsWith('_PIRITA')) return { base: 'PLOMO', variedad: 'PIRITA' };
+    return { base: 'PLOMO', variedad: 'NORMAL' };
+  }
+  if (tipo.startsWith('ESTANO')) {
+    if (tipo.endsWith('_OXIDO')) return { base: 'ESTANO', variedad: 'OXIDO' };
+    if (tipo.endsWith('_PIRITA')) return { base: 'ESTANO', variedad: 'PIRITA' };
+    return { base: 'ESTANO', variedad: 'NORMAL' };
+  }
+  return { base: 'PLATA', variedad: 'NORMAL' };
+};
+
+export const buildTipoMineral = (base, variedad) => {
+  if (base === 'COMPLEJO') return 'COMPLEJO';
+  if (variedad === 'OXIDO') return `${base}_OXIDO`;
+  if (variedad === 'PIRITA') return `${base}_PIRITA`;
+  return base;
+};
+
+export const getMineralBadge = (tipo) =>
+  TIPOS_MINERAL.find((t) => t.value === tipo)?.badgeClass || 'bg-gray-100 text-gray-800 border-gray-200';
+
+export const getMineralLabel = (tipo) =>
+  TIPOS_MINERAL.find((t) => t.value === tipo)?.label || tipo;
 
 const ESTADOS = [
   { value: '', label: 'Pendientes / Activos' },
@@ -334,10 +384,11 @@ const InternMineral = () => {
     setFormError(null);
   };
 
-  // Sugerir próximo número correlativo de lote si el usuario lo desea
+  // Sugerir próximo número correlativo de lote inteligente (ej: c-201 -> c-202, p-505 -> p-506)
   const handleSugerirLote = async () => {
     try {
-      const data = await internacionService.getNextLote();
+      const currentLote = watchCreate('lote') || '';
+      const data = await internacionService.getNextLote(currentLote.trim());
       if (data?.nextLote) {
         setCreateValue('lote', data.nextLote, { shouldValidate: true, shouldDirty: true });
         clearCreateErrors('lote');
@@ -593,6 +644,7 @@ const InternMineral = () => {
 
   const getMineralStyle = (tipo) =>
     TIPOS_MINERAL.find((t) => t.value === tipo)?.badgeClass || 'bg-gray-100 text-gray-800 border-gray-200';
+  const getMineralBadge = getMineralStyle;
 
   const getMineralLabel = (tipo) =>
     TIPOS_MINERAL.find((t) => t.value === tipo)?.label || tipo;
@@ -644,16 +696,24 @@ const InternMineral = () => {
     try {
       setSavingAnticipo(true);
       setAnticiposError(null);
-      const provId = anticiposLoteItem.proveedorId || anticiposLoteItem.proveedor?.id;
+
+      // Registrar la entrega asociada al lote en la base de datos
       await anticipoService.createAnticipo({
         internacionId: anticiposLoteItem.id,
-        proveedorId: provId ? Number(provId) : undefined,
+        proveedorId: anticiposLoteItem.proveedorId || anticiposLoteItem.proveedor?.id,
         monto,
-        glosa: nuevoAnticipoGlosa.trim() || 'Adelanto en efectivo'
+        glosa: nuevoAnticipoGlosa.trim() || `Entrega en báscula - ${anticiposLoteItem.lote}`
       });
-      showSuccess(`✅ Anticipo de ${formatBs(monto)} registrado correctamente`);
+
+      const anterior = Math.trunc(Number(anticiposLoteItem.anticipo) || 0);
+      const nuevoTotal = anterior + monto;
+
+      showSuccess(`✅ Anticipo de ${formatBs(monto)} registrado para el lote ${anticiposLoteItem.lote} (Total: ${formatBs(nuevoTotal)})`);
       setNuevoAnticipoMonto('');
       setNuevoAnticipoGlosa('');
+      setAnticiposLoteItem({ ...anticiposLoteItem, anticipo: nuevoTotal });
+
+      // Recargar el historial cronológico real de la base de datos
       await loadAnticiposForLote(anticiposLoteItem.id);
       loadInternaciones(pagination.page);
       loadStats();
@@ -664,13 +724,46 @@ const InternMineral = () => {
     }
   };
 
+  const handleResetearAnticipoLote = async () => {
+    if (!anticiposLoteItem) return;
+    if (!window.confirm(`¿Estás seguro de dejar en Bs 0 el anticipo del lote ${anticiposLoteItem.lote}? Se eliminarán las entregas cronológicas registradas.`)) return;
+    try {
+      setSavingAnticipo(true);
+      setAnticiposError(null);
+
+      // Eliminar registros de anticipos asociados si existen
+      for (const ant of anticiposHistory) {
+        try {
+          await anticipoService.deleteAnticipo(ant.id);
+        } catch (_) {
+          // Continuar con los demás
+        }
+      }
+
+      await internacionService.updateInternacion(anticiposLoteItem.id, { anticipo: 0 });
+      showSuccess(`Anticipo del lote ${anticiposLoteItem.lote} restablecido a Bs 0`);
+      setAnticiposLoteItem({ ...anticiposLoteItem, anticipo: 0 });
+      setAnticiposHistory([]);
+      loadInternaciones(pagination.page);
+      loadStats();
+    } catch (err) {
+      setAnticiposError(handleApiError(err));
+    } finally {
+      setSavingAnticipo(false);
+    }
+  };
+
   const handleEliminarAnticipo = async (anticipoId) => {
-    if (!window.confirm('¿Estás seguro de eliminar este registro de anticipo? Se restará del total del lote.')) return;
+    if (!window.confirm('¿Estás seguro de eliminar este registro de anticipo? Se restará automáticamente del total del lote.')) return;
     try {
       await anticipoService.deleteAnticipo(anticipoId);
-      showSuccess('Anticipo eliminado');
+      showSuccess('Entrega de anticipo eliminada exitosamente');
       if (anticiposLoteItem) {
-        await loadAnticiposForLote(anticiposLoteItem.id);
+        const res = await anticipoService.getAnticiposByInternacion(anticiposLoteItem.id);
+        const nuevoHistorial = res.anticipos || [];
+        setAnticiposHistory(nuevoHistorial);
+        const nuevoTotal = nuevoHistorial.reduce((s, a) => s + Math.trunc(Number(a.monto) || 0), 0);
+        setAnticiposLoteItem((prev) => ({ ...prev, anticipo: nuevoTotal }));
       }
       loadInternaciones(pagination.page);
       loadStats();
@@ -1126,41 +1219,102 @@ const InternMineral = () => {
                 )}
               </div>
 
-              {/* SECCIÓN 2: TIPO DE MINERAL */}
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-800">
-                  Tipo de Mineral *
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                  {TIPOS_MINERAL.map((t) => {
-                    const isSelected = watchedCreateTipoMineral === t.value;
+              {/* SECCIÓN 2: TIPO DE MINERAL (SELECCIÓN EN 2 PASOS: ELEMENTO Y VARIEDAD) */}
+              <div className="space-y-3 p-3.5 bg-gray-50/80 rounded-xl border border-gray-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <label className="text-xs font-bold text-gray-800 uppercase tracking-wider">
+                    1. Elemento Principal a Internar *
+                  </label>
+                  <span className="text-xs font-mono font-bold text-gray-700">
+                    Mineral Seleccionado:{' '}
+                    <span className={`inline-block px-2 py-0.5 rounded font-mono font-bold text-xs ${getMineralBadge(watchedCreateTipoMineral)}`}>
+                      {getMineralLabel(watchedCreateTipoMineral)}
+                    </span>
+                  </span>
+                </div>
+
+                {/* Paso 1: Botones de Elemento Base */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {ELEMENTOS_BASE.map((elem) => {
+                    const parsed = parseTipoMineral(watchedCreateTipoMineral);
+                    const isElementSelected = parsed.base === elem.key;
                     return (
                       <button
                         type="button"
-                        key={t.value}
+                        key={elem.key}
                         onClick={() => {
-                          setCreateValue('tipoMineral', t.value, { shouldValidate: true });
+                          const newTipo = buildTipoMineral(
+                            elem.key,
+                            elem.key === 'COMPLEJO' ? 'NORMAL' : parsed.variedad
+                          );
+                          setCreateValue('tipoMineral', newTipo, { shouldValidate: true });
                           setFormError(null);
                         }}
-                        className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
-                          isSelected
-                            ? `${t.activeClass} shadow-sm`
+                        className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                          isElementSelected
+                            ? `${elem.activeClass} shadow-xs`
                             : 'border-gray-200 hover:border-gray-300 bg-white'
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-sm text-gray-900">{t.label}</span>
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-xs font-mono font-bold ${t.badgeClass}`}
-                          >
-                            {t.symbol}
+                          <span className="font-bold text-xs sm:text-sm text-gray-900">{elem.label}</span>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-mono font-bold ${elem.badgeClass}`}>
+                            {elem.symbol}
                           </span>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">{t.desc}</p>
+                        <p className="text-[11px] text-gray-500 mt-1">{elem.desc}</p>
                       </button>
                     );
                   })}
                 </div>
+
+                {/* Paso 2: Variedad / Tipo de Mineralización (si no es Complejo) */}
+                {parseTipoMineral(watchedCreateTipoMineral).base !== 'COMPLEJO' && (
+                  <div className="pt-2 border-t border-gray-200/80">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wider">
+                        2. Variedad / Mineralización del Lote:
+                      </label>
+                      <span className="text-[10px] text-gray-500">
+                        Indica si el lote viene normal, oxidado o piritoso
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {VARIANTES_MINERAL.map((varItem) => {
+                        const parsed = parseTipoMineral(watchedCreateTipoMineral);
+                        const isVarSelected = parsed.variedad === varItem.key;
+                        const targetTipo = buildTipoMineral(parsed.base, varItem.key);
+                        const badgeStyle = getMineralBadge(targetTipo);
+                        return (
+                          <button
+                            type="button"
+                            key={varItem.key}
+                            onClick={() => {
+                              setCreateValue('tipoMineral', targetTipo, { shouldValidate: true });
+                              setFormError(null);
+                            }}
+                            className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                              isVarSelected
+                                ? 'bg-slate-900 text-white border-slate-900 shadow-xs ring-1 ring-slate-900'
+                                : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span>{varItem.label}</span>
+                            {varItem.key !== 'NORMAL' && (
+                              <span
+                                className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                                  isVarSelected ? 'bg-white/20 text-white' : badgeStyle
+                                }`}
+                              >
+                                {varItem.key}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* SECCIÓN 3: CONTROL DE LOTE, PESO Y ANTICIPO */}
@@ -1176,7 +1330,7 @@ const InternMineral = () => {
                       type="button"
                       onClick={handleSugerirLote}
                       className="text-xs text-primary-600 hover:text-primary-800 font-medium inline-flex items-center gap-1 transition-colors hover:underline"
-                      title="Sugerir siguiente correlativo disponible"
+                      title="Sugerir siguiente correlativo inteligente (ej: c-201 → c-202)"
                     >
                       <Sparkles className="h-3 w-3" />
                       Sugerir
@@ -1441,7 +1595,10 @@ const InternMineral = () => {
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
                 {internaciones.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                  <tr
+                    key={item.id}
+                    className="border-b border-gray-150 transition-all duration-150 even:bg-slate-50/70 hover:bg-indigo-50/45 hover:shadow-xs"
+                  >
                     {/* Lote */}
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <span className="font-mono font-bold text-xs bg-slate-100 text-slate-800 border border-slate-300 px-2.5 py-1 rounded-md">
@@ -1957,6 +2114,16 @@ const InternMineral = () => {
                 <p className="text-xl font-bold font-mono text-emerald-700">
                   {formatBs(anticiposLoteItem.anticipo)}
                 </p>
+                {anticiposLoteItem?.estado !== 'PAGADO' && Number(anticiposLoteItem.anticipo) > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleResetearAnticipoLote}
+                    className="text-[11px] text-red-600 hover:text-red-800 underline mt-0.5 block ml-auto font-medium"
+                    title="Restablecer el anticipo de este lote a Bs 0"
+                  >
+                    Restablecer a Bs 0
+                  </button>
+                )}
               </div>
             </div>
           )}

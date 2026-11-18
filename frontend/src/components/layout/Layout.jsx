@@ -15,7 +15,8 @@ import {
   SlidersHorizontal,
   LogOut,
   ChevronDown,
-  User
+  User,
+  FileSpreadsheet
 } from 'lucide-react';
 import logoEmblem from '../../assets/Emblema del minero con pico.png';
 
@@ -54,6 +55,12 @@ const Layout = ({ children }) => {
       name: 'Internar Mineral',
       href: '/internar',
       icon: PackageCheck,
+      show: canInternMineral()
+    },
+    {
+      name: 'Internaciones Realizadas',
+      href: '/internaciones-realizadas',
+      icon: FileSpreadsheet,
       show: canInternMineral()
     },
     {

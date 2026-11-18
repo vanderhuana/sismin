@@ -23,6 +23,7 @@ model Usuario {
   internaciones   Internacion[]
   anticipos       Anticipo[]
   ventasGenerales VentaLoteGeneral[]
+  cobrosAnticipo  AnticipoDescuento[]
 
   @@map("usuarios")
 }
@@ -141,14 +142,19 @@ model Anticipo {
 }
 
 model AnticipoDescuento {
-  id              Int       @id @default(autoincrement())
-  anticipoId      Int
-  calculoId       Int
-  montoDescontado Decimal   @db.Decimal(10,2)
-  fecha           DateTime  @default(now())
+  id                Int       @id @default(autoincrement())
+  anticipoId        Int
+  calculoId         Int?
+  montoDescontado   Decimal   @db.Decimal(10,2)
+  fecha             DateTime  @default(now())
+  tipoPago          String?   @default("LIQUIDACION_MINERAL") @db.VarChar(50)
+  glosa             String?   @db.VarChar(255)
+  comprobanteNumero String?   @db.VarChar(50)
+  usuarioId         Int?
 
-  anticipo        Anticipo  @relation(fields: [anticipoId], references: [id], onDelete: Cascade)
-  calculo         Calculo   @relation(fields: [calculoId], references: [id], onDelete: Cascade)
+  anticipo          Anticipo  @relation(fields: [anticipoId], references: [id], onDelete: Cascade)
+  calculo           Calculo?  @relation(fields: [calculoId], references: [id], onDelete: Cascade)
+  usuario           Usuario?  @relation(fields: [usuarioId], references: [id])
 
   @@map("anticipos_descuentos")
 }
@@ -219,7 +225,14 @@ enum TipoProveedor {
 
 enum TipoMineral {
   PLATA
+  PLATA_OXIDO
+  PLATA_PIRITA
   PLOMO
+  PLOMO_OXIDO
+  PLOMO_PIRITA
+  ESTANO
+  ESTANO_OXIDO
+  ESTANO_PIRITA
   COMPLEJO
   PIRITA
   OXIDO

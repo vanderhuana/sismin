@@ -31,9 +31,16 @@ import {
 
 const TIPOS_MINERAL = [
   { value: 'TODOS', label: 'Todos los Minerales', badgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-300' },
-  { value: 'PLATA', label: 'Plata (Ag)', badgeClass: 'bg-slate-100 text-slate-800 border-slate-300' },
-  { value: 'PLOMO', label: 'Plomo (Pb)', badgeClass: 'bg-zinc-100 text-zinc-800 border-zinc-300' },
-  { value: 'COMPLEJO', label: 'Complejo (Ag + Pb)', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300' },
+  { value: 'PLATA', label: 'Plata (Ag)', badgeClass: 'bg-blue-100 text-blue-800 border-blue-300' },
+  { value: 'PLATA_OXIDO', label: 'Plata Óxido', badgeClass: 'bg-orange-100 text-orange-800 border-orange-300' },
+  { value: 'PLATA_PIRITA', label: 'Plata Pirita', badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  { value: 'PLOMO', label: 'Plomo (Pb)', badgeClass: 'bg-violet-100 text-violet-800 border-violet-300' },
+  { value: 'PLOMO_OXIDO', label: 'Plomo Óxido', badgeClass: 'bg-orange-100 text-orange-900 border-orange-400' },
+  { value: 'PLOMO_PIRITA', label: 'Plomo Pirita', badgeClass: 'bg-amber-100 text-amber-900 border-amber-400' },
+  { value: 'ESTANO', label: 'Estaño (Sn)', badgeClass: 'bg-teal-100 text-teal-800 border-teal-300' },
+  { value: 'ESTANO_OXIDO', label: 'Estaño Óxido', badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-400' },
+  { value: 'ESTANO_PIRITA', label: 'Estaño Pirita', badgeClass: 'bg-lime-100 text-lime-900 border-lime-400' },
+  { value: 'COMPLEJO', label: 'Complejo (Ag + Pb)', badgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-300' },
   { value: 'PIRITA', label: 'Pirita (Py)', badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
   { value: 'OXIDO', label: 'Óxido (Ox)', badgeClass: 'bg-orange-100 text-orange-800 border-orange-300' }
 ];
@@ -46,6 +53,25 @@ const formatBs = (n) =>
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   });
+
+const mineralBadgeMap = {
+  PLATA: { label: 'Plata (Ag)', badge: 'bg-blue-100 text-blue-800 border-blue-300' },
+  PLATA_OXIDO: { label: 'Plata Óxido', badge: 'bg-orange-100 text-orange-800 border-orange-300' },
+  PLATA_PIRITA: { label: 'Plata Pirita', badge: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  PLOMO: { label: 'Plomo (Pb)', badge: 'bg-violet-100 text-violet-800 border-violet-300' },
+  PLOMO_OXIDO: { label: 'Plomo Óxido', badge: 'bg-orange-100 text-orange-900 border-orange-400' },
+  PLOMO_PIRITA: { label: 'Plomo Pirita', badge: 'bg-amber-100 text-amber-900 border-amber-400' },
+  ESTANO: { label: 'Estaño (Sn)', badge: 'bg-teal-100 text-teal-800 border-teal-300' },
+  ESTANO_OXIDO: { label: 'Estaño Óxido', badge: 'bg-emerald-100 text-emerald-900 border-emerald-400' },
+  ESTANO_PIRITA: { label: 'Estaño Pirita', badge: 'bg-lime-100 text-lime-900 border-lime-400' },
+  COMPLEJO: { label: 'Complejo (Ag+Pb)', badge: 'bg-indigo-100 text-indigo-800 border-indigo-300' },
+  PIRITA: { label: 'Pirita (Py)', badge: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  OXIDO: { label: 'Óxido (Ox)', badge: 'bg-orange-100 text-orange-800 border-orange-300' }
+};
+
+const getMineralBadge = (tipo) => {
+  return mineralBadgeMap[tipo] || { label: tipo, badge: 'bg-gray-100 text-gray-800 border-gray-300' };
+};
 
 const MineralSales = () => {
   const [activeTab, setActiveTab] = useState('NUEVO'); // 'NUEVO' | 'HISTORIAL'
@@ -74,6 +100,7 @@ const MineralSales = () => {
   const [numeroLoteGeneral, setNumeroLoteGeneral] = useState('');
   const [leyReferenciaAg, setLeyReferenciaAg] = useState('100');
   const [leyReferenciaPb, setLeyReferenciaPb] = useState('');
+  const [leyReferenciaSn, setLeyReferenciaSn] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [guardandoCierre, setGuardandoCierre] = useState(false);
 
@@ -211,8 +238,8 @@ const MineralSales = () => {
 
     list.sort((a, b) => {
       if (ordenColumna === 'ley') {
-        const leyA = a.ley_ag ?? a.ley_pb ?? 0;
-        const leyB = b.ley_ag ?? b.ley_pb ?? 0;
+        const leyA = a.ley_sn ?? a.ley_ag ?? a.ley_pb ?? 0;
+        const leyB = b.ley_sn ?? b.ley_ag ?? b.ley_pb ?? 0;
         return ordenDireccion === 'desc' ? leyB - leyA : leyA - leyB;
       }
       if (ordenColumna === 'peso') {
@@ -287,7 +314,7 @@ const MineralSales = () => {
     const ids = new Set();
     lotesDisponibles.forEach((r) => {
       if (!r.yaVendido) {
-        const ley = r.ley_ag ?? r.ley_pb ?? 0;
+        const ley = r.ley_sn ?? r.ley_ag ?? r.ley_pb ?? 0;
         if (ley >= 100) {
           ids.add(r.internacionId);
         }
@@ -312,18 +339,26 @@ const MineralSales = () => {
     const totalPeso = seleccionados.reduce((sum, r) => sum + r.peso, 0);
     const totalPromAg = seleccionados.reduce((sum, r) => sum + (r.promedio_ag || 0), 0);
     const totalPromPb = seleccionados.reduce((sum, r) => sum + (r.promedio_pb || 0), 0);
+    const totalPromSn = seleccionados.reduce((sum, r) => sum + (r.promedio_sn || (r.tipoMineral?.startsWith('ESTANO') ? (r.promedio_pb || 0) : 0)), 0);
     const totalCosto = seleccionados.reduce((sum, r) => sum + (r.costo || 0), 0);
 
-    const leyAgPonderada = totalPeso > 0 && totalPromAg > 0 ? totalPromAg / totalPeso : 0;
-    const leyPbPonderada = totalPeso > 0 && totalPromPb > 0 ? totalPromPb / totalPeso : 0;
+    const pesoAg = seleccionados.filter((r) => (r.promedio_ag || 0) > 0).reduce((sum, r) => sum + r.peso, 0);
+    const pesoPb = seleccionados.filter((r) => (r.promedio_pb || 0) > 0).reduce((sum, r) => sum + r.peso, 0);
+    const pesoSn = seleccionados.filter((r) => (r.promedio_sn || (r.tipoMineral?.startsWith('ESTANO') ? (r.promedio_pb || 0) : 0)) > 0).reduce((sum, r) => sum + r.peso, 0);
+
+    const leyAgPonderada = (pesoAg > 0 && totalPromAg > 0) ? (totalPromAg / pesoAg) : (totalPeso > 0 && totalPromAg > 0 ? totalPromAg / totalPeso : 0);
+    const leyPbPonderada = (pesoPb > 0 && totalPromPb > 0) ? (totalPromPb / pesoPb) : (totalPeso > 0 && totalPromPb > 0 ? totalPromPb / totalPeso : 0);
+    const leySnPonderada = (pesoSn > 0 && totalPromSn > 0) ? (totalPromSn / pesoSn) : (totalPeso > 0 && totalPromSn > 0 ? totalPromSn / totalPeso : 0);
 
     return {
       cantidad: seleccionados.length,
       totalPeso,
       totalPromAg,
       totalPromPb,
+      totalPromSn,
       leyAgPonderada,
       leyPbPonderada,
+      leySnPonderada,
       totalCosto
     };
   }, [lotesDisponibles, selectedLoteIds]);
@@ -358,13 +393,16 @@ const MineralSales = () => {
         }
       }
 
+      const isEstanoCierre = mineralPayload.startsWith('ESTANO');
+      const refPb = isEstanoCierre && leyReferenciaSn ? parseFloat(leyReferenciaSn) : (leyReferenciaPb ? parseFloat(leyReferenciaPb) : undefined);
+
       const payload = {
         numeroLoteGeneral: numeroLoteGeneral.trim().toUpperCase(),
         tipoMineral: mineralPayload,
         fechaInicioFiltro: filtroFechaDesde || undefined,
         fechaFinFiltro: filtroFechaHasta || undefined,
         leyReferenciaAg: leyReferenciaAg ? parseFloat(leyReferenciaAg) : undefined,
-        leyReferenciaPb: leyReferenciaPb ? parseFloat(leyReferenciaPb) : undefined,
+        leyReferenciaPb: refPb,
         observaciones: observaciones.trim() || undefined,
         loteIds: Array.from(selectedLoteIds)
       };
@@ -787,6 +825,17 @@ const MineralSales = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    setFiltroEstadoVenta('DISPONIBLES');
+                    setFiltroTipoMineral('ESTANO');
+                    handleBuscarLotes(null, { estadoVenta: 'DISPONIBLES', tipoMineral: 'ESTANO' });
+                  }}
+                  className="btn btn-secondary text-teal-800 bg-teal-50 border border-teal-200 font-semibold px-4 py-2.5 text-sm hover:bg-teal-100"
+                >
+                  <span>Solo Estaño (Sn)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     setFiltroEstadoVenta('VENDIDOS');
                     setFiltroTipoMineral('TODOS');
                     handleBuscarLotes(null, { estadoVenta: 'VENDIDOS', tipoMineral: 'TODOS' });
@@ -827,29 +876,65 @@ const MineralSales = () => {
                       </p>
                     </div>
 
-                    <div className="rounded-xl border border-emerald-300 bg-emerald-50/70 p-3.5 shadow-sm">
-                      <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">
-                        Ley Ponderada Ag
-                      </p>
-                      <p className="mt-1 text-2xl font-bold font-mono text-emerald-900">
-                        {metricasEnVivo.leyAgPonderada.toFixed(2)}
-                      </p>
-                      <p className="text-[10px] text-emerald-700">
-                        Exacta: {metricasEnVivo.leyAgPonderada.toFixed(4)}
-                      </p>
-                    </div>
+                    {filtroTipoMineral.startsWith('ESTANO') ? (
+                      <div className="rounded-xl border border-teal-300 bg-teal-50/70 p-3.5 shadow-sm">
+                        <p className="text-xs font-semibold text-teal-800 uppercase tracking-wider">
+                          Ley Ponderada Sn (%)
+                        </p>
+                        <p className="mt-1 text-2xl font-bold font-mono text-teal-900">
+                          {metricasEnVivo.leySnPonderada.toFixed(2)} %
+                        </p>
+                        <p className="text-[10px] text-teal-700">
+                          Exacta: {metricasEnVivo.leySnPonderada.toFixed(4)}% | Prom: {Number(metricasEnVivo.totalPromSn).toLocaleString('es-BO')}
+                        </p>
+                      </div>
+                    ) : filtroTipoMineral.startsWith('PLOMO') ? (
+                      <div className="rounded-xl border border-zinc-300 bg-zinc-50/70 p-3.5 shadow-sm">
+                        <p className="text-xs font-semibold text-zinc-800 uppercase tracking-wider">
+                          Ley Ponderada Pb (%)
+                        </p>
+                        <p className="mt-1 text-2xl font-bold font-mono text-zinc-900">
+                          {metricasEnVivo.leyPbPonderada.toFixed(2)} %
+                        </p>
+                        <p className="text-[10px] text-zinc-700">
+                          Exacta: {metricasEnVivo.leyPbPonderada.toFixed(4)}% | Prom: {Number(metricasEnVivo.totalPromPb).toLocaleString('es-BO')}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-emerald-300 bg-emerald-50/70 p-3.5 shadow-sm">
+                        <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">
+                          Ley Ponderada Ag (DM)
+                        </p>
+                        <p className="mt-1 text-2xl font-bold font-mono text-emerald-900">
+                          {metricasEnVivo.leyAgPonderada.toFixed(2)}
+                        </p>
+                        <p className="text-[10px] text-emerald-700">
+                          Exacta: {metricasEnVivo.leyAgPonderada.toFixed(4)} | Prom: {Number(metricasEnVivo.totalPromAg).toLocaleString('es-BO')}
+                        </p>
+                      </div>
+                    )}
 
-                    <div className="rounded-xl border border-zinc-300 bg-zinc-50/70 p-3.5 shadow-sm">
-                      <p className="text-xs font-semibold text-zinc-800 uppercase tracking-wider">
-                        Ley Ponderada Pb
-                      </p>
-                      <p className="mt-1 text-2xl font-bold font-mono text-zinc-900">
-                        {metricasEnVivo.leyPbPonderada.toFixed(2)}
-                      </p>
-                      <p className="text-[10px] text-zinc-700">
-                        Exacta: {metricasEnVivo.leyPbPonderada.toFixed(4)}
-                      </p>
-                    </div>
+                    {filtroTipoMineral === 'COMPLEJO' ? (
+                      <div className="rounded-xl border border-zinc-300 bg-zinc-50/70 p-3.5 shadow-sm">
+                        <p className="text-xs font-semibold text-zinc-800 uppercase tracking-wider">
+                          Ley Ponderada Pb (%)
+                        </p>
+                        <p className="mt-1 text-2xl font-bold font-mono text-zinc-900">
+                          {metricasEnVivo.leyPbPonderada.toFixed(2)} %
+                        </p>
+                        <p className="text-[10px] text-zinc-700">
+                          Exacta: {metricasEnVivo.leyPbPonderada.toFixed(4)}%
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-emerald-200 bg-white p-3.5 shadow-sm">
+                        <p className="text-xs font-medium text-gray-500">Costo Total Compra</p>
+                        <p className="mt-1 text-2xl font-bold font-mono text-emerald-700">
+                          {formatBs(metricasEnVivo.totalCosto)}
+                        </p>
+                        <p className="text-[10px] text-gray-400">Total acumulado en Bs</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Tabla de Matriz Rediseñada y Ampliada */}
@@ -967,22 +1052,78 @@ const MineralSales = () => {
                                 )}
                               </div>
                             </th>
-                            <th
-                              onClick={() => toggleOrden('ley')}
-                              className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200/80 transition-colors"
-                            >
-                              <div className="flex items-center justify-end gap-1.5 text-emerald-800">
-                                <span>Ley Ag</span>
-                                {ordenColumna === 'ley' ? (
-                                  ordenDireccion === 'desc' ? <ArrowDown className="h-3.5 w-3.5 text-emerald-700" /> : <ArrowUp className="h-3.5 w-3.5 text-emerald-700" />
-                                ) : (
-                                  <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
-                                )}
-                              </div>
-                            </th>
-                            <th className="py-3.5 px-4 text-right">Prom. Ag</th>
-                            <th className="py-3.5 px-4 text-right text-zinc-800">Ley Pb</th>
-                            <th className="py-3.5 px-4 text-right">Prom. Pb</th>
+                            {/* Columnas según mineral */}
+                            {filtroTipoMineral.startsWith('ESTANO') ? (
+                              <>
+                                <th
+                                  onClick={() => toggleOrden('ley')}
+                                  className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200/80 transition-colors"
+                                >
+                                  <div className="flex items-center justify-end gap-1.5 text-teal-800">
+                                    <span>Ley Sn (%)</span>
+                                    {ordenColumna === 'ley' ? (
+                                      ordenDireccion === 'desc' ? <ArrowDown className="h-3.5 w-3.5 text-teal-700" /> : <ArrowUp className="h-3.5 w-3.5 text-teal-700" />
+                                    ) : (
+                                      <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
+                                    )}
+                                  </div>
+                                </th>
+                                <th className="py-3.5 px-4 text-right text-teal-900">Prom. Sn</th>
+                              </>
+                            ) : filtroTipoMineral.startsWith('PLOMO') ? (
+                              <>
+                                <th
+                                  onClick={() => toggleOrden('ley')}
+                                  className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200/80 transition-colors"
+                                >
+                                  <div className="flex items-center justify-end gap-1.5 text-zinc-800">
+                                    <span>Ley Pb (%)</span>
+                                    {ordenColumna === 'ley' ? (
+                                      ordenDireccion === 'desc' ? <ArrowDown className="h-3.5 w-3.5 text-zinc-700" /> : <ArrowUp className="h-3.5 w-3.5 text-zinc-700" />
+                                    ) : (
+                                      <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
+                                    )}
+                                  </div>
+                                </th>
+                                <th className="py-3.5 px-4 text-right text-zinc-900">Prom. Pb</th>
+                              </>
+                            ) : filtroTipoMineral.startsWith('PLATA') || filtroTipoMineral === 'PIRITA' || filtroTipoMineral === 'OXIDO' ? (
+                              <>
+                                <th
+                                  onClick={() => toggleOrden('ley')}
+                                  className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200/80 transition-colors"
+                                >
+                                  <div className="flex items-center justify-end gap-1.5 text-emerald-800">
+                                    <span>Ley Ag (DM)</span>
+                                    {ordenColumna === 'ley' ? (
+                                      ordenDireccion === 'desc' ? <ArrowDown className="h-3.5 w-3.5 text-emerald-700" /> : <ArrowUp className="h-3.5 w-3.5 text-emerald-700" />
+                                    ) : (
+                                      <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
+                                    )}
+                                  </div>
+                                </th>
+                                <th className="py-3.5 px-4 text-right text-emerald-900">Prom. Ag</th>
+                              </>
+                            ) : (
+                              <>
+                                <th
+                                  onClick={() => toggleOrden('ley')}
+                                  className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200/80 transition-colors"
+                                >
+                                  <div className="flex items-center justify-end gap-1.5 text-emerald-800">
+                                    <span>Ley Ag</span>
+                                    {ordenColumna === 'ley' ? (
+                                      ordenDireccion === 'desc' ? <ArrowDown className="h-3.5 w-3.5 text-emerald-700" /> : <ArrowUp className="h-3.5 w-3.5 text-emerald-700" />
+                                    ) : (
+                                      <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
+                                    )}
+                                  </div>
+                                </th>
+                                <th className="py-3.5 px-4 text-right">Prom. Ag</th>
+                                <th className="py-3.5 px-4 text-right text-zinc-800">Ley Pb / Sn</th>
+                                <th className="py-3.5 px-4 text-right">Prom. Pb / Sn</th>
+                              </>
+                            )}
                             <th className="py-3.5 px-4 text-right">Valor Bruto (Bs)</th>
                             <th className="py-3.5 px-4 text-center">Estado Venta</th>
                           </tr>
@@ -990,8 +1131,11 @@ const MineralSales = () => {
                         <tbody className="divide-y divide-gray-200 bg-white">
                           {lotesMostrados.map((r) => {
                             const isChecked = selectedLoteIds.has(r.internacionId);
-                            const leyPrincipal = r.ley_ag ?? r.ley_pb ?? 0;
-                            const esLeyAlta = leyPrincipal >= 100;
+                            const badgeInfo = getMineralBadge(r.tipoMineral);
+                            const esSnLote = (r.tipoMineral || '').startsWith('ESTANO');
+                            const esPbLote = (r.tipoMineral || '').startsWith('PLOMO');
+                            const leySnVal = r.ley_sn ?? (esSnLote ? r.ley_pb : null);
+                            const promSnVal = r.promedio_sn ?? (esSnLote ? r.promedio_pb : null);
 
                             return (
                               <tr
@@ -1034,22 +1178,10 @@ const MineralSales = () => {
                                   </span>
                                 </td>
 
-                                {/* Mineral */}
+                                {/* Mineral con Badge */}
                                 <td className="py-3.5 px-4">
-                                  <span
-                                    className={`inline-flex px-2 py-0.5 rounded text-xs font-bold border ${
-                                      r.tipoMineral === 'PLATA'
-                                        ? 'bg-slate-100 text-slate-800 border-slate-300'
-                                        : r.tipoMineral === 'PLOMO'
-                                        ? 'bg-zinc-100 text-zinc-800 border-zinc-300'
-                                        : r.tipoMineral === 'PIRITA'
-                                        ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
-                                        : r.tipoMineral === 'OXIDO'
-                                        ? 'bg-orange-100 text-orange-800 border-orange-300'
-                                        : 'bg-amber-100 text-amber-800 border-amber-300'
-                                    }`}
-                                  >
-                                    {r.tipoMineral}
+                                  <span className={`inline-flex px-2 py-0.5 rounded text-xs font-bold border ${badgeInfo.badge}`}>
+                                    {badgeInfo.label}
                                   </span>
                                 </td>
 
@@ -1063,47 +1195,107 @@ const MineralSales = () => {
                                   {formatKg(r.peso)}
                                 </td>
 
-                                {/* Ley Ag & Prom Ag */}
-                                <td className="py-3.5 px-4 text-right">
-                                  {r.ley_ag !== null ? (
-                                    <span
-                                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-extrabold font-mono ${
-                                        r.ley_ag >= 100
-                                          ? 'bg-amber-100 text-amber-900 border border-amber-300 shadow-sm'
-                                          : 'bg-slate-100 text-slate-800 border border-slate-200'
-                                      }`}
-                                    >
-                                      {r.ley_ag >= 100 && <Sparkles className="h-3.5 w-3.5 text-amber-600" />}
-                                      {r.ley_ag}
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-400">—</span>
-                                  )}
-                                </td>
-                                <td className="py-3.5 px-4 text-right font-mono text-sm text-gray-900 font-semibold">
-                                  {r.promedio_ag ? Number(r.promedio_ag).toLocaleString('es-BO') : '—'}
-                                </td>
-
-                                {/* Ley Pb & Prom Pb */}
-                                <td className="py-3.5 px-4 text-right">
-                                  {r.ley_pb !== null ? (
-                                    <span
-                                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-extrabold font-mono ${
-                                        r.ley_pb >= 100
-                                          ? 'bg-amber-100 text-amber-900 border border-amber-300 shadow-sm'
-                                          : 'bg-zinc-100 text-zinc-800 border border-zinc-200'
-                                      }`}
-                                    >
-                                      {r.ley_pb >= 100 && <Sparkles className="h-3.5 w-3.5 text-amber-600" />}
-                                      {r.ley_pb}
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-400">—</span>
-                                  )}
-                                </td>
-                                <td className="py-3.5 px-4 text-right font-mono text-sm text-gray-900 font-semibold">
-                                  {r.promedio_pb ? Number(r.promedio_pb).toLocaleString('es-BO') : '—'}
-                                </td>
+                                {/* Columnas de Ley y Promedio dinámicas según filtro */}
+                                {filtroTipoMineral.startsWith('ESTANO') ? (
+                                  <>
+                                    <td className="py-3.5 px-4 text-right">
+                                      {leySnVal !== null ? (
+                                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-extrabold font-mono ${
+                                          leySnVal >= 40
+                                            ? 'bg-teal-100 text-teal-900 border border-teal-300 shadow-sm'
+                                            : 'bg-slate-100 text-slate-800 border border-slate-200'
+                                        }`}>
+                                          {leySnVal >= 40 && <Sparkles className="h-3.5 w-3.5 text-teal-600" />}
+                                          {leySnVal}%
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right font-mono text-sm text-gray-900 font-semibold">
+                                      {promSnVal ? Number(promSnVal).toLocaleString('es-BO') : '—'}
+                                    </td>
+                                  </>
+                                ) : filtroTipoMineral.startsWith('PLOMO') ? (
+                                  <>
+                                    <td className="py-3.5 px-4 text-right">
+                                      {r.ley_pb !== null ? (
+                                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-extrabold font-mono ${
+                                          r.ley_pb >= 50
+                                            ? 'bg-zinc-200 text-zinc-900 border border-zinc-400 shadow-sm'
+                                            : 'bg-zinc-100 text-zinc-800 border border-zinc-200'
+                                        }`}>
+                                          {r.ley_pb >= 50 && <Sparkles className="h-3.5 w-3.5 text-zinc-600" />}
+                                          {r.ley_pb}%
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right font-mono text-sm text-gray-900 font-semibold">
+                                      {r.promedio_pb ? Number(r.promedio_pb).toLocaleString('es-BO') : '—'}
+                                    </td>
+                                  </>
+                                ) : filtroTipoMineral.startsWith('PLATA') || filtroTipoMineral === 'PIRITA' || filtroTipoMineral === 'OXIDO' ? (
+                                  <>
+                                    <td className="py-3.5 px-4 text-right">
+                                      {r.ley_ag !== null ? (
+                                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-extrabold font-mono ${
+                                          r.ley_ag >= 100
+                                            ? 'bg-amber-100 text-amber-900 border border-amber-300 shadow-sm'
+                                            : 'bg-slate-100 text-slate-800 border border-slate-200'
+                                        }`}>
+                                          {r.ley_ag >= 100 && <Sparkles className="h-3.5 w-3.5 text-amber-600" />}
+                                          {r.ley_ag}
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right font-mono text-sm text-gray-900 font-semibold">
+                                      {r.promedio_ag ? Number(r.promedio_ag).toLocaleString('es-BO') : '—'}
+                                    </td>
+                                  </>
+                                ) : (
+                                  /* TODOS / COMPLEJO */
+                                  <>
+                                    <td className="py-3.5 px-4 text-right">
+                                      {r.ley_ag !== null ? (
+                                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-extrabold font-mono ${
+                                          r.ley_ag >= 100
+                                            ? 'bg-amber-100 text-amber-900 border border-amber-300 shadow-sm'
+                                            : 'bg-slate-100 text-slate-800 border border-slate-200'
+                                        }`}>
+                                          {r.ley_ag >= 100 && <Sparkles className="h-3.5 w-3.5 text-amber-600" />}
+                                          {r.ley_ag}
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right font-mono text-sm text-gray-900 font-semibold">
+                                      {r.promedio_ag ? Number(r.promedio_ag).toLocaleString('es-BO') : '—'}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right">
+                                      {esSnLote && leySnVal !== null ? (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-teal-50 text-teal-800 border border-teal-200">
+                                          Sn: {leySnVal}%
+                                        </span>
+                                      ) : r.ley_pb !== null ? (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-zinc-100 text-zinc-800 border border-zinc-200">
+                                          Pb: {r.ley_pb}%
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right font-mono text-sm text-gray-900 font-semibold">
+                                      {esSnLote
+                                        ? (promSnVal ? Number(promSnVal).toLocaleString('es-BO') : '—')
+                                        : (r.promedio_pb ? Number(r.promedio_pb).toLocaleString('es-BO') : '—')}
+                                    </td>
+                                  </>
+                                )}
 
                                 {/* Costo Compra */}
                                 <td className="py-3.5 px-4 text-right font-mono text-sm text-gray-600 font-medium">
@@ -1136,28 +1328,76 @@ const MineralSales = () => {
                             <td className="py-4 px-4 text-right font-mono text-base font-bold text-emerald-400">
                               {formatKg(metricasEnVivo.totalPeso)}
                             </td>
-                            <td className="py-4 px-4 text-right">
-                              <div className="inline-block bg-amber-400/20 border border-amber-400/40 px-2.5 py-1 rounded-md">
-                                <span className="text-xs text-amber-200 block uppercase font-medium">Ley Ag Pond:</span>
-                                <span className="font-mono text-base font-black text-amber-300">
-                                  {metricasEnVivo.leyAgPonderada.toFixed(2)}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="py-4 px-4 text-right font-mono text-base font-bold text-slate-100">
-                              {Number(metricasEnVivo.totalPromAg).toLocaleString('es-BO')}
-                            </td>
-                            <td className="py-4 px-4 text-right">
-                              <div className="inline-block bg-amber-400/20 border border-amber-400/40 px-2.5 py-1 rounded-md">
-                                <span className="text-xs text-amber-200 block uppercase font-medium">Ley Pb Pond:</span>
-                                <span className="font-mono text-base font-black text-amber-300">
-                                  {metricasEnVivo.leyPbPonderada.toFixed(2)}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="py-4 px-4 text-right font-mono text-base font-bold text-slate-100">
-                              {Number(metricasEnVivo.totalPromPb).toLocaleString('es-BO')}
-                            </td>
+                            {filtroTipoMineral.startsWith('ESTANO') ? (
+                              <>
+                                <td className="py-4 px-4 text-right">
+                                  <div className="inline-block bg-teal-400/20 border border-teal-400/40 px-2.5 py-1 rounded-md">
+                                    <span className="text-xs text-teal-200 block uppercase font-medium">Ley Sn Pond:</span>
+                                    <span className="font-mono text-base font-black text-teal-300">
+                                      {metricasEnVivo.leySnPonderada.toFixed(2)} %
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 text-right font-mono text-base font-bold text-slate-100">
+                                  {Number(metricasEnVivo.totalPromSn).toLocaleString('es-BO')}
+                                </td>
+                              </>
+                            ) : filtroTipoMineral.startsWith('PLOMO') ? (
+                              <>
+                                <td className="py-4 px-4 text-right">
+                                  <div className="inline-block bg-zinc-400/20 border border-zinc-400/40 px-2.5 py-1 rounded-md">
+                                    <span className="text-xs text-zinc-200 block uppercase font-medium">Ley Pb Pond:</span>
+                                    <span className="font-mono text-base font-black text-zinc-300">
+                                      {metricasEnVivo.leyPbPonderada.toFixed(2)} %
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 text-right font-mono text-base font-bold text-slate-100">
+                                  {Number(metricasEnVivo.totalPromPb).toLocaleString('es-BO')}
+                                </td>
+                              </>
+                            ) : filtroTipoMineral.startsWith('PLATA') || filtroTipoMineral === 'PIRITA' || filtroTipoMineral === 'OXIDO' ? (
+                              <>
+                                <td className="py-4 px-4 text-right">
+                                  <div className="inline-block bg-amber-400/20 border border-amber-400/40 px-2.5 py-1 rounded-md">
+                                    <span className="text-xs text-amber-200 block uppercase font-medium">Ley Ag Pond:</span>
+                                    <span className="font-mono text-base font-black text-amber-300">
+                                      {metricasEnVivo.leyAgPonderada.toFixed(2)}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 text-right font-mono text-base font-bold text-slate-100">
+                                  {Number(metricasEnVivo.totalPromAg).toLocaleString('es-BO')}
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="py-4 px-4 text-right">
+                                  <div className="inline-block bg-amber-400/20 border border-amber-400/40 px-2.5 py-1 rounded-md">
+                                    <span className="text-xs text-amber-200 block uppercase font-medium">Ley Ag Pond:</span>
+                                    <span className="font-mono text-base font-black text-amber-300">
+                                      {metricasEnVivo.leyAgPonderada.toFixed(2)}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 text-right font-mono text-base font-bold text-slate-100">
+                                  {Number(metricasEnVivo.totalPromAg).toLocaleString('es-BO')}
+                                </td>
+                                <td className="py-4 px-4 text-right">
+                                  <div className="inline-block bg-amber-400/20 border border-amber-400/40 px-2.5 py-1 rounded-md">
+                                    <span className="text-xs text-amber-200 block uppercase font-medium">
+                                      {metricasEnVivo.leySnPonderada > 0 && metricasEnVivo.leyPbPonderada === 0 ? 'Ley Sn Pond:' : 'Ley Pb Pond:'}
+                                    </span>
+                                    <span className="font-mono text-base font-black text-amber-300">
+                                      {(metricasEnVivo.leyPbPonderada > 0 ? metricasEnVivo.leyPbPonderada : metricasEnVivo.leySnPonderada).toFixed(2)} %
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 text-right font-mono text-base font-bold text-slate-100">
+                                  {Number(metricasEnVivo.totalPromPb || metricasEnVivo.totalPromSn).toLocaleString('es-BO')}
+                                </td>
+                              </>
+                            )}
                             <td className="py-4 px-4 text-right font-mono text-base font-bold text-emerald-400">
                               {formatBs(metricasEnVivo.totalCosto)}
                             </td>
@@ -1199,10 +1439,10 @@ const MineralSales = () => {
                           required
                         />
                       </div>
-                      {(filtroTipoMineral === 'PLATA' || filtroTipoMineral === 'PIRITA' || filtroTipoMineral === 'OXIDO' || filtroTipoMineral === 'COMPLEJO') && (
+                      {(filtroTipoMineral.startsWith('PLATA') || filtroTipoMineral === 'PIRITA' || filtroTipoMineral === 'OXIDO' || filtroTipoMineral === 'COMPLEJO' || filtroTipoMineral === 'TODOS') && !filtroTipoMineral.startsWith('ESTANO') && !filtroTipoMineral.startsWith('PLOMO') && (
                         <div>
                           <label className="block text-xs font-semibold text-gray-700 mb-1">
-                            Ley Referencia {filtroTipoMineral === 'PLATA' ? 'Ag' : filtroTipoMineral === 'PIRITA' ? 'Py (DM)' : filtroTipoMineral === 'OXIDO' ? 'Ox (DM)' : 'Ag (DM)'}
+                            Ley Referencia {filtroTipoMineral.startsWith('PLATA') ? 'Ag (DM)' : filtroTipoMineral === 'PIRITA' ? 'Py (DM)' : filtroTipoMineral === 'OXIDO' ? 'Ox (DM)' : 'Ag (DM)'}
                           </label>
                           <input
                             type="number"
@@ -1214,10 +1454,10 @@ const MineralSales = () => {
                           />
                         </div>
                       )}
-                      {(filtroTipoMineral === 'PLOMO' || filtroTipoMineral === 'COMPLEJO') && (
+                      {(filtroTipoMineral.startsWith('PLOMO') || filtroTipoMineral === 'COMPLEJO') && (
                         <div>
                           <label className="block text-xs font-semibold text-gray-700 mb-1">
-                            Ley Referencia Pb
+                            Ley Referencia Pb (%)
                           </label>
                           <input
                             type="number"
@@ -1226,6 +1466,21 @@ const MineralSales = () => {
                             onChange={(e) => setLeyReferenciaPb(e.target.value)}
                             placeholder="Ej: 60"
                             className="input text-sm"
+                          />
+                        </div>
+                      )}
+                      {filtroTipoMineral.startsWith('ESTANO') && (
+                        <div>
+                          <label className="block text-xs font-semibold text-teal-800 mb-1">
+                            Ley Referencia Sn (%)
+                          </label>
+                          <input
+                            type="number"
+                            step="any"
+                            value={leyReferenciaSn}
+                            onChange={(e) => setLeyReferenciaSn(e.target.value)}
+                            placeholder="Ej: 45"
+                            className="input text-sm border-teal-300 focus:border-teal-500"
                           />
                         </div>
                       )}
@@ -1257,7 +1512,13 @@ const MineralSales = () => {
                         ) : (
                           <>
                             <Lock className="h-5 w-5" />
-                            <span>Cerrar y Guardar Lote General ({metricasEnVivo.leyAgPonderada ? `Ley ${metricasEnVivo.leyAgPonderada.toFixed(2)}` : ''})</span>
+                            <span>
+                              Cerrar y Guardar Lote General ({
+                                metricasEnVivo.leySnPonderada > 0 ? `Ley Sn ${metricasEnVivo.leySnPonderada.toFixed(2)}%` :
+                                metricasEnVivo.leyAgPonderada > 0 ? `Ley Ag ${metricasEnVivo.leyAgPonderada.toFixed(2)}` :
+                                metricasEnVivo.leyPbPonderada > 0 ? `Ley Pb ${metricasEnVivo.leyPbPonderada.toFixed(2)}%` : ''
+                              })
+                            </span>
                           </>
                         )}
                       </button>
@@ -1435,105 +1696,183 @@ const MineralSales = () => {
             </div>
 
             <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-sm bg-white">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-100/90 text-slate-700 text-xs font-bold uppercase tracking-wider border-b border-gray-200">
-                    <th className="py-3.5 px-4 text-left">Lote</th>
-                    <th className="py-3.5 px-4 text-left">Proveedor</th>
-                    <th className="py-3.5 px-4 text-right">Peso Bruto (kg)</th>
-                    {ventaDetalleItem.tipoMineral !== 'PLOMO' && (
-                      <>
-                        <th className="py-3.5 px-4 text-right">Ley Ag</th>
-                        <th className="py-3.5 px-4 text-right">Prom. Ag</th>
-                      </>
-                    )}
-                    {(ventaDetalleItem.tipoMineral === 'PLOMO' || ventaDetalleItem.tipoMineral === 'COMPLEJO') && (
-                      <>
-                        <th className="py-3.5 px-4 text-right">Ley Pb</th>
-                        <th className="py-3.5 px-4 text-right">Prom. Pb</th>
-                      </>
-                    )}
-                    <th className="py-3.5 px-4 text-right">Valor Bruto (Bs)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {ventaDetalleItem.detalles?.map((d) => (
-                    <tr key={d.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3.5 px-4 font-mono font-bold text-emerald-800 text-sm">
-                        {d.numeroLote}
-                      </td>
-                      <td className="py-3.5 px-4 font-medium text-sm text-gray-900">
-                        {d.internacion?.proveedor?.nombreCompleto || '—'}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono font-bold text-sm text-gray-900">
-                        {formatKg(d.pesoNeto)}
-                      </td>
-                      {ventaDetalleItem.tipoMineral !== 'PLOMO' && (
-                        <>
-                          <td className="py-3.5 px-4 text-right">
-                            <span className="font-mono font-bold text-sm bg-slate-100 px-2 py-0.5 rounded text-slate-800">
-                              {d.leyAg ?? '—'}
-                            </span>
+              {(() => {
+                const minUp = (ventaDetalleItem.tipoMineral || '').toUpperCase();
+                const isEstanoModal = minUp.startsWith('ESTANO');
+                const isPlomoModal = minUp.startsWith('PLOMO');
+                const isComplejoModal = minUp.includes('COMPLEJO');
+
+                return (
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100/90 text-slate-700 text-xs font-bold uppercase tracking-wider border-b border-gray-200">
+                        <th className="py-3.5 px-4 text-left">Lote</th>
+                        <th className="py-3.5 px-4 text-left">Proveedor</th>
+                        <th className="py-3.5 px-4 text-right">Peso Bruto (kg)</th>
+                        {isEstanoModal ? (
+                          <>
+                            <th className="py-3.5 px-4 text-right text-teal-800">Ley Sn (%)</th>
+                            <th className="py-3.5 px-4 text-right text-teal-900">Prom. Sn</th>
+                          </>
+                        ) : isPlomoModal ? (
+                          <>
+                            <th className="py-3.5 px-4 text-right text-zinc-800">Ley Pb (%)</th>
+                            <th className="py-3.5 px-4 text-right text-zinc-900">Prom. Pb</th>
+                          </>
+                        ) : isComplejoModal ? (
+                          <>
+                            <th className="py-3.5 px-4 text-right text-emerald-800">Ley Ag</th>
+                            <th className="py-3.5 px-4 text-right">Prom. Ag</th>
+                            <th className="py-3.5 px-4 text-right text-zinc-800">Ley Pb</th>
+                            <th className="py-3.5 px-4 text-right">Prom. Pb</th>
+                          </>
+                        ) : (
+                          <>
+                            <th className="py-3.5 px-4 text-right text-emerald-800">Ley Ag (DM)</th>
+                            <th className="py-3.5 px-4 text-right text-emerald-900">Prom. Ag</th>
+                          </>
+                        )}
+                        <th className="py-3.5 px-4 text-right">Valor Bruto (Bs)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {ventaDetalleItem.detalles?.map((d) => (
+                        <tr key={d.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-3.5 px-4 font-mono font-bold text-emerald-800 text-sm">
+                            {d.numeroLote}
                           </td>
-                          <td className="py-3.5 px-4 text-right font-mono font-medium text-sm text-gray-900">
-                            {d.promedioAg ? Number(d.promedioAg).toLocaleString('es-BO') : '—'}
+                          <td className="py-3.5 px-4 font-medium text-sm text-gray-900">
+                            {d.internacion?.proveedor?.nombreCompleto || '—'}
                           </td>
-                        </>
-                      )}
-                      {(ventaDetalleItem.tipoMineral === 'PLOMO' || ventaDetalleItem.tipoMineral === 'COMPLEJO') && (
-                        <>
-                          <td className="py-3.5 px-4 text-right">
-                            <span className="font-mono font-bold text-sm bg-zinc-100 px-2 py-0.5 rounded text-zinc-800">
-                              {d.leyPb ?? '—'}
-                            </span>
+                          <td className="py-3.5 px-4 text-right font-mono font-bold text-sm text-gray-900">
+                            {formatKg(d.pesoNeto)}
                           </td>
-                          <td className="py-3.5 px-4 text-right font-mono font-medium text-sm text-gray-900">
-                            {d.promedioPb ? Number(d.promedioPb).toLocaleString('es-BO') : '—'}
+                          {isEstanoModal ? (
+                            <>
+                              <td className="py-3.5 px-4 text-right">
+                                <span className="font-mono font-bold text-sm bg-teal-100 px-2 py-0.5 rounded text-teal-800">
+                                  {d.leyPb ?? '—'}%
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-medium text-sm text-gray-900">
+                                {d.promedioPb ? Number(d.promedioPb).toLocaleString('es-BO') : '—'}
+                              </td>
+                            </>
+                          ) : isPlomoModal ? (
+                            <>
+                              <td className="py-3.5 px-4 text-right">
+                                <span className="font-mono font-bold text-sm bg-zinc-100 px-2 py-0.5 rounded text-zinc-800">
+                                  {d.leyPb ?? '—'}%
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-medium text-sm text-gray-900">
+                                {d.promedioPb ? Number(d.promedioPb).toLocaleString('es-BO') : '—'}
+                              </td>
+                            </>
+                          ) : isComplejoModal ? (
+                            <>
+                              <td className="py-3.5 px-4 text-right">
+                                <span className="font-mono font-bold text-sm bg-slate-100 px-2 py-0.5 rounded text-slate-800">
+                                  {d.leyAg ?? '—'}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-medium text-sm text-gray-900">
+                                {d.promedioAg ? Number(d.promedioAg).toLocaleString('es-BO') : '—'}
+                              </td>
+                              <td className="py-3.5 px-4 text-right">
+                                <span className="font-mono font-bold text-sm bg-zinc-100 px-2 py-0.5 rounded text-zinc-800">
+                                  {d.leyPb ?? '—'}%
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-medium text-sm text-gray-900">
+                                {d.promedioPb ? Number(d.promedioPb).toLocaleString('es-BO') : '—'}
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="py-3.5 px-4 text-right">
+                                <span className="font-mono font-bold text-sm bg-slate-100 px-2 py-0.5 rounded text-slate-800">
+                                  {d.leyAg ?? '—'}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-medium text-sm text-gray-900">
+                                {d.promedioAg ? Number(d.promedioAg).toLocaleString('es-BO') : '—'}
+                              </td>
+                            </>
+                          )}
+                          <td className="py-3.5 px-4 text-right font-mono text-sm text-gray-600">
+                            {formatBs(d.costoCompra)}
                           </td>
-                        </>
-                      )}
-                      <td className="py-3.5 px-4 text-right font-mono text-sm text-gray-600">
-                        {formatBs(d.costoCompra)}
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="bg-slate-900 text-white font-bold border-t-2 border-emerald-500">
-                    <td colSpan={2} className="py-4 px-4 text-right uppercase tracking-wider text-xs text-slate-300">
-                      TOTALES:
-                    </td>
-                    <td className="py-4 px-4 text-right font-mono text-base font-bold text-emerald-400">
-                      {formatKg(ventaDetalleItem.totalPesoNeto)}
-                    </td>
-                    {ventaDetalleItem.tipoMineral !== 'PLOMO' && (
-                      <>
-                        <td className="py-4 px-4 text-right">
-                          <span className="font-mono text-base font-black text-amber-300">
-                            Pond: {Number(ventaDetalleItem.leyPonderadaAg || 0).toFixed(2)}
-                          </span>
+                        </tr>
+                      ))}
+                      <tr className="bg-slate-900 text-white font-bold border-t-2 border-emerald-500">
+                        <td colSpan={2} className="py-4 px-4 text-right uppercase tracking-wider text-xs text-slate-300">
+                          TOTALES:
                         </td>
-                        <td className="py-4 px-4 text-right font-mono text-base font-bold text-slate-100">
-                          {Number(ventaDetalleItem.totalPromedioAg || 0).toLocaleString('es-BO')}
+                        <td className="py-4 px-4 text-right font-mono text-base font-bold text-emerald-400">
+                          {formatKg(ventaDetalleItem.totalPesoNeto)}
                         </td>
-                      </>
-                    )}
-                    {(ventaDetalleItem.tipoMineral === 'PLOMO' || ventaDetalleItem.tipoMineral === 'COMPLEJO') && (
-                      <>
-                        <td className="py-4 px-4 text-right">
-                          <span className="font-mono text-base font-black text-amber-300">
-                            Pond: {Number(ventaDetalleItem.leyPonderadaPb || 0).toFixed(2)}
-                          </span>
+                        {isEstanoModal ? (
+                          <>
+                            <td className="py-4 px-4 text-right">
+                              <span className="font-mono text-base font-black text-teal-300">
+                                Pond: {Number(ventaDetalleItem.leyPonderadaPb || 0).toFixed(2)}%
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-right font-mono text-base font-bold text-slate-100">
+                              {Number(ventaDetalleItem.totalPromedioPb || 0).toLocaleString('es-BO')}
+                            </td>
+                          </>
+                        ) : isPlomoModal ? (
+                          <>
+                            <td className="py-4 px-4 text-right">
+                              <span className="font-mono text-base font-black text-amber-300">
+                                Pond: {Number(ventaDetalleItem.leyPonderadaPb || 0).toFixed(2)}%
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-right font-mono text-base font-bold text-slate-100">
+                              {Number(ventaDetalleItem.totalPromedioPb || 0).toLocaleString('es-BO')}
+                            </td>
+                          </>
+                        ) : isComplejoModal ? (
+                          <>
+                            <td className="py-4 px-4 text-right">
+                              <span className="font-mono text-base font-black text-amber-300">
+                                Pond: {Number(ventaDetalleItem.leyPonderadaAg || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-right font-mono text-base font-bold text-slate-100">
+                              {Number(ventaDetalleItem.totalPromedioAg || 0).toLocaleString('es-BO')}
+                            </td>
+                            <td className="py-4 px-4 text-right">
+                              <span className="font-mono text-base font-black text-amber-300">
+                                Pond: {Number(ventaDetalleItem.leyPonderadaPb || 0).toFixed(2)}%
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-right font-mono text-base font-bold text-slate-100">
+                              {Number(ventaDetalleItem.totalPromedioPb || 0).toLocaleString('es-BO')}
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="py-4 px-4 text-right">
+                              <span className="font-mono text-base font-black text-amber-300">
+                                Pond: {Number(ventaDetalleItem.leyPonderadaAg || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-right font-mono text-base font-bold text-slate-100">
+                              {Number(ventaDetalleItem.totalPromedioAg || 0).toLocaleString('es-BO')}
+                            </td>
+                          </>
+                        )}
+                        <td className="py-4 px-4 text-right font-mono text-base font-bold text-emerald-400">
+                          {formatBs(ventaDetalleItem.costoTotalCompra)}
                         </td>
-                        <td className="py-4 px-4 text-right font-mono text-base font-bold text-slate-100">
-                          {Number(ventaDetalleItem.totalPromedioPb || 0).toLocaleString('es-BO')}
-                        </td>
-                      </>
-                    )}
-                    <td className="py-4 px-4 text-right font-mono text-base font-bold text-emerald-400">
-                      {formatBs(ventaDetalleItem.costoTotalCompra)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                      </tr>
+                    </tbody>
+                  </table>
+                );
+              })()}
             </div>
           </div>
         ) : null}

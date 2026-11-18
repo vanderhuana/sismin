@@ -23,18 +23,29 @@ import {
   Coins,
   AlertTriangle,
   Receipt,
-  Printer
+  Printer,
+  Search,
+  X,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
-const mineralLabel = { PLATA: 'Plata', PLOMO: 'Plomo', COMPLEJO: 'Complejo', PIRITA: 'Pirita', OXIDO: 'Óxido' };
-
 const mineralBadge = {
-  PLATA: { label: 'Plata (Ag)', badge: 'bg-slate-100 text-slate-800 border-slate-300' },
-  PLOMO: { label: 'Plomo (Pb)', badge: 'bg-zinc-100 text-zinc-800 border-zinc-300' },
-  COMPLEJO: { label: 'Complejo (Ag+Pb)', badge: 'bg-amber-100 text-amber-800 border-amber-300' },
+  PLATA: { label: 'Plata (Ag)', badge: 'bg-blue-100 text-blue-800 border-blue-300' },
+  PLATA_OXIDO: { label: 'Plata Óxido', badge: 'bg-orange-100 text-orange-800 border-orange-300' },
+  PLATA_PIRITA: { label: 'Plata Pirita', badge: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  PLOMO: { label: 'Plomo (Pb)', badge: 'bg-violet-100 text-violet-800 border-violet-300' },
+  PLOMO_OXIDO: { label: 'Plomo Óxido', badge: 'bg-orange-100 text-orange-900 border-orange-400' },
+  PLOMO_PIRITA: { label: 'Plomo Pirita', badge: 'bg-amber-100 text-amber-900 border-amber-400' },
+  ESTANO: { label: 'Estaño (Sn)', badge: 'bg-teal-100 text-teal-800 border-teal-300' },
+  ESTANO_OXIDO: { label: 'Estaño Óxido', badge: 'bg-emerald-100 text-emerald-900 border-emerald-400' },
+  ESTANO_PIRITA: { label: 'Estaño Pirita', badge: 'bg-lime-100 text-lime-900 border-lime-400' },
+  COMPLEJO: { label: 'Complejo (Ag+Pb)', badge: 'bg-indigo-100 text-indigo-800 border-indigo-300' },
   PIRITA: { label: 'Pirita (Py)', badge: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
   OXIDO: { label: 'Óxido (Ox)', badge: 'bg-orange-100 text-orange-800 border-orange-300' }
 };
+
+const getMineralLabel = (tipo) => mineralBadge[tipo]?.label || tipo;
 
 const CalculatePay = () => {
   const location = useLocation();
@@ -48,6 +59,13 @@ const CalculatePay = () => {
   const [success, setSuccess] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [showRegaliasDetalle, setShowRegaliasDetalle] = useState(false);
+
+  // Búsqueda y paginación de pendientes de ley
+  const [busquedaPendiente, setBusquedaPendiente] = useState('');
+  const [filtroMineralPendiente, setFiltroMineralPendiente] = useState('');
+  const [paginaPendientes, setPaginaPendientes] = useState(1);
+  const ITEMS_PER_PAGE_PENDIENTES = 6;
+  const formCalcRef = useRef(null);
 
   // Historial de anticipos en báscula del lote
   const [anticiposHistorial, setAnticiposHistorial] = useState([]);
@@ -65,6 +83,16 @@ const CalculatePay = () => {
   const [pagandoLote, setPagandoLote] = useState(false);
   const [descargandoId, setDescargandoId] = useState(null);
 
+  // Estado para modal de estimación de Valor de Escala (Fórmula de Escala)
+  const [modalEscalaOpen, setModalEscalaOpen] = useState(false);
+  const [modalEscalaData, setModalEscalaData] = useState({
+    fieldName: 'valorEscala',
+    ley: '',
+    porcentaje: 75,
+    cotizacion: 48,
+    tipoCambio: 11
+  });
+
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm({
     defaultValues: {
       humedadPorcentaje: 3,
@@ -81,6 +109,35 @@ const CalculatePay = () => {
   });
 
   const formValues = watch();
+
+  // Cálculo en tiempo real de la fórmula de valor de escala: (Ley * 3.215 * % * cot * tc) / 1000
+  const resultadoEscalaCalculado = useMemo(() => {
+    const leyNum = parseFloat(modalEscalaData.ley) || 0;
+    const factorEstatico = 3.215;
+    const pct = (parseFloat(modalEscalaData.porcentaje) || 0) / 100;
+    const cot = parseFloat(modalEscalaData.cotizacion) || 0;
+    const tc = parseFloat(modalEscalaData.tipoCambio) || 0;
+
+    const val = (leyNum * factorEstatico * pct * cot * tc) / 1000;
+    return Math.round(val);
+  }, [modalEscalaData]);
+
+  const handleOpenModalEscala = (fieldName = 'valorEscala', leyField = 'ley') => {
+    const currentLey = formValues[leyField] || '';
+    setModalEscalaData({
+      fieldName,
+      ley: currentLey,
+      porcentaje: 75,
+      cotizacion: 48,
+      tipoCambio: 11
+    });
+    setModalEscalaOpen(true);
+  };
+
+  const handleAplicarEscala = (resultado) => {
+    setValue(modalEscalaData.fieldName, resultado, { shouldDirty: true, shouldValidate: true });
+    setModalEscalaOpen(false);
+  };
 
   // Total descontado de cuenta del proveedor según lo tranzado
   const totalDescuentoProveedor = useMemo(() => {
@@ -130,6 +187,45 @@ const CalculatePay = () => {
     }
   }, [selected, formValues, totalAnticiposAplicados]);
 
+  // Filtro y búsqueda de pendientes de ley
+  const filteredPendientes = useMemo(() => {
+    let result = pendientes;
+
+    if (filtroMineralPendiente) {
+      result = result.filter((p) => {
+        if (filtroMineralPendiente === 'PLATA') return p.tipoMineral?.startsWith('PLATA');
+        if (filtroMineralPendiente === 'PLOMO') return p.tipoMineral?.startsWith('PLOMO');
+        if (filtroMineralPendiente === 'ESTANO') return p.tipoMineral?.startsWith('ESTANO');
+        if (filtroMineralPendiente === 'COMPLEJO') return p.tipoMineral === 'COMPLEJO';
+        return p.tipoMineral === filtroMineralPendiente;
+      });
+    }
+
+    if (busquedaPendiente.trim()) {
+      const q = busquedaPendiente.trim().toLowerCase();
+      result = result.filter((p) => {
+        const lote = (p.lote || '').toLowerCase();
+        const prov = (p.proveedor?.nombreCompleto || '').toLowerCase();
+        const ci = (p.proveedor?.ci || '').toLowerCase();
+        return lote.includes(q) || prov.includes(q) || ci.includes(q);
+      });
+    }
+
+    return result;
+  }, [pendientes, busquedaPendiente, filtroMineralPendiente]);
+
+  const totalPaginasPendientes = Math.max(1, Math.ceil(filteredPendientes.length / ITEMS_PER_PAGE_PENDIENTES));
+
+  const paginatedPendientes = useMemo(() => {
+    const start = (paginaPendientes - 1) * ITEMS_PER_PAGE_PENDIENTES;
+    return filteredPendientes.slice(start, start + ITEMS_PER_PAGE_PENDIENTES);
+  }, [filteredPendientes, paginaPendientes]);
+
+  // Si cambia el filtro o búsqueda, restablecer a la página 1
+  useEffect(() => {
+    setPaginaPendientes(1);
+  }, [busquedaPendiente, filtroMineralPendiente]);
+
   const loadData = async () => {
     try {
       setLoadingPendientes(true);
@@ -154,6 +250,14 @@ const CalculatePay = () => {
 
   const selectInternacion = async (item) => {
     setSelected(item);
+
+    // En pantallas pequeñas o medianas, auto-scroll al formulario para evitar subir/bajar tedioso
+    if (formCalcRef.current && window.innerWidth < 1024) {
+      setTimeout(() => {
+        formCalcRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    }
+
     const totalAnticipo = Math.trunc(Number(item.anticipo) || 0);
     reset({
       humedadPorcentaje: 3,
@@ -207,18 +311,26 @@ const CalculatePay = () => {
     }
   };
 
-  // Preseleccionar internación si viene desde el módulo Internar Mineral
+  // Preseleccionar internación si viene desde el módulo Internar Mineral o Internaciones Realizadas
   useEffect(() => {
     const internacionId = location.state?.internacionId;
     if (!internacionId || preselectHandled.current || pendientes.length === 0) return;
 
     const item = pendientes.find((p) => p.id === internacionId);
     if (item) {
+      // Ajustar página en la que se encuentra el lote preseleccionado
+      const index = filteredPendientes.findIndex((p) => p.id === internacionId);
+      if (index !== -1) {
+        const targetPage = Math.floor(index / ITEMS_PER_PAGE_PENDIENTES) + 1;
+        setPaginaPendientes(targetPage);
+      }
       selectInternacion(item);
       preselectHandled.current = true;
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (formCalcRef.current && window.innerWidth < 1024) {
+        formCalcRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
-  }, [pendientes, location.state, reset]);
+  }, [pendientes, location.state, reset, filteredPendientes]);
 
   const showSuccess = (msg) => {
     setSuccess(msg);
@@ -274,12 +386,17 @@ const CalculatePay = () => {
       }
 
       const result = await calculoService.createCalculo(payload);
-      showSuccess(`Cálculo guardado — Saldo: ${formatBs(result.calculo.saldoFinal)}`);
+      showSuccess(`✅ Cálculo guardado para el lote ${selected.lote} — Saldo: ${formatBs(result.calculo.saldoFinal)}`);
       setSelected(null);
       reset();
       setAnticiposCuentaProveedor([]);
       setDescuentosPactados({});
       loadData();
+
+      // Redireccionar directamente abriendo el modal de Confirmar Pago / Imprimir
+      if (result.calculo) {
+        setModalConfirmarPago(result.calculo);
+      }
     } catch (err) {
       setError(handleApiError(err));
     } finally {
@@ -364,58 +481,218 @@ const CalculatePay = () => {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Lotes pendientes */}
-        <div className="card">
-          <div className="card-header">
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-yellow-500" />
-              <h2 className="card-title text-lg">Pendientes de ley</h2>
+        <div className="card flex flex-col h-fit">
+          <div className="card-header pb-3 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600 border border-amber-200">
+                  <Clock className="h-4 w-4" />
+                </div>
+                <div>
+                  <h2 className="card-title text-base font-bold text-gray-900">Pendientes de Ley</h2>
+                  <p className="text-xs text-gray-500">Lotes en espera de liquidación</p>
+                </div>
+              </div>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200">
+                {filteredPendientes.length} {filteredPendientes.length === 1 ? 'lote' : 'lotes'}
+              </span>
             </div>
-            <p className="text-sm text-gray-500">Selecciona para calcular</p>
-          </div>
 
-          {loadingPendientes ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
-            </div>
-          ) : pendientes.length === 0 ? (
-            <p className="card-content py-8 text-center text-sm text-gray-500">
-              No hay internaciones pendientes de ley
-            </p>
-          ) : (
-            <ul className="divide-y divide-gray-200">
-              {pendientes.map((item) => (
-                <li
-                  key={item.id}
-                  onClick={() => selectInternacion(item)}
-                  className={`cursor-pointer p-4 transition-colors ${
-                    selected?.id === item.id
-                      ? 'bg-primary-50 border-l-4 border-primary-600'
-                      : 'hover:bg-gray-50'
+            {/* Barra de Búsqueda y Filtro de Mineral */}
+            <div className="mt-3 space-y-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  value={busquedaPendiente}
+                  onChange={(e) => setBusquedaPendiente(e.target.value)}
+                  placeholder="Buscar por lote, proveedor, CI..."
+                  className="w-full pl-8 pr-7 py-1.5 text-xs rounded-lg border border-gray-200 bg-gray-50/70 focus:bg-white focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
+                />
+                {busquedaPendiente && (
+                  <button
+                    type="button"
+                    onClick={() => setBusquedaPendiente('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
+                    title="Limpiar búsqueda"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Filtro rápido por mineral */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 text-xs scrollbar-thin">
+                <button
+                  type="button"
+                  onClick={() => setFiltroMineralPendiente('')}
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors shrink-0 ${
+                    !filtroMineralPendiente
+                      ? 'bg-primary-600 text-white font-semibold shadow-xs'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
-                  <div className="flex justify-between items-start">
-                    <span className="font-semibold text-gray-900">{item.lote}</span>
-                    <span className="badge badge-warning text-xs">{mineralLabel[item.tipoMineral]}</span>
-                  </div>
-                  <p className="text-sm text-gray-600 truncate mt-1">
-                    {item.proveedor?.nombreCompleto}
-                  </p>
-                  <div className="mt-1 flex justify-between text-xs text-gray-500">
-                    <span>{formatKg(item.kilosBruto)}</span>
-                    {Number(item.anticipo) > 0 && (
-                      <span className="text-amber-800 font-semibold">
-                        Anticipo: {formatBs(item.anticipo)}
-                      </span>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
+                  Todos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltroMineralPendiente('PLATA')}
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors shrink-0 ${
+                    filtroMineralPendiente === 'PLATA'
+                      ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                      : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                  }`}
+                >
+                  Plata
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltroMineralPendiente('PLOMO')}
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors shrink-0 ${
+                    filtroMineralPendiente === 'PLOMO'
+                      ? 'bg-violet-600 text-white font-semibold shadow-xs'
+                      : 'bg-violet-50 text-violet-700 hover:bg-violet-100'
+                  }`}
+                >
+                  Plomo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltroMineralPendiente('ESTANO')}
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors shrink-0 ${
+                    filtroMineralPendiente === 'ESTANO'
+                      ? 'bg-teal-600 text-white font-semibold shadow-xs'
+                      : 'bg-teal-50 text-teal-700 hover:bg-teal-100'
+                  }`}
+                >
+                  Estaño
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltroMineralPendiente('COMPLEJO')}
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors shrink-0 ${
+                    filtroMineralPendiente === 'COMPLEJO'
+                      ? 'bg-indigo-600 text-white font-semibold shadow-xs'
+                      : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                  }`}
+                >
+                  Complejo
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Contenido de la lista */}
+          <div className="flex-1">
+            {loadingPendientes ? (
+              <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+                <Loader2 className="h-6 w-6 animate-spin text-primary-600 mb-2" />
+                <span className="text-xs">Cargando pendientes...</span>
+              </div>
+            ) : filteredPendientes.length === 0 ? (
+              <div className="py-8 px-4 text-center">
+                <p className="text-sm font-medium text-gray-500">No se encontraron lotes</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {busquedaPendiente || filtroMineralPendiente
+                    ? 'Prueba modificando los filtros de búsqueda'
+                    : 'No hay internaciones pendientes de ley'}
+                </p>
+                {(busquedaPendiente || filtroMineralPendiente) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBusquedaPendiente('');
+                      setFiltroMineralPendiente('');
+                    }}
+                    className="mt-3 text-xs text-primary-600 hover:text-primary-800 font-semibold underline"
+                  >
+                    Restablecer filtros
+                  </button>
+                )}
+              </div>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {paginatedPendientes.map((item) => {
+                  const isItemActive = selected?.id === item.id;
+                  return (
+                    <li
+                      key={item.id}
+                      onClick={() => selectInternacion(item)}
+                      className={`cursor-pointer p-3 transition-all duration-150 ${
+                        isItemActive
+                          ? 'bg-primary-50/90 border-l-4 border-primary-600 shadow-2xs'
+                          : 'hover:bg-slate-50/80 border-l-4 border-transparent'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className={`font-mono text-sm font-bold ${isItemActive ? 'text-primary-800' : 'text-gray-900'}`}>
+                            {item.lote}
+                          </span>
+                          {isItemActive && (
+                            <span className="text-[10px] bg-primary-600 text-white px-1.5 py-0.2 rounded font-semibold">
+                              Activo
+                            </span>
+                          )}
+                        </div>
+                        <span className={`badge text-[10px] py-0.5 px-2 font-mono font-bold shrink-0 ${mineralBadge[item.tipoMineral]?.badge || 'badge-warning'}`}>
+                          {getMineralLabel(item.tipoMineral)}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-gray-600 font-medium truncate mt-1">
+                        {item.proveedor?.nombreCompleto}
+                      </p>
+
+                      <div className="mt-1.5 flex justify-between items-center text-[11px] text-gray-500 border-t border-gray-100/60 pt-1">
+                        <span className="font-semibold text-gray-700">{formatKg(item.kilosBruto)}</span>
+                        {Number(item.anticipo) > 0 ? (
+                          <span className="text-amber-700 font-semibold bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                            Anticipo: {formatBs(item.anticipo)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">Sin anticipo</span>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          {/* Paginación */}
+          {filteredPendientes.length > ITEMS_PER_PAGE_PENDIENTES && (
+            <div className="p-2.5 bg-gray-50/80 border-t border-gray-200 flex items-center justify-between text-xs text-gray-600">
+              <span className="text-[11px] text-gray-500 font-medium">
+                Pág. <strong className="text-gray-800">{paginaPendientes}</strong> de {totalPaginasPendientes} ({filteredPendientes.length} lotes)
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPaginaPendientes((p) => Math.max(1, p - 1))}
+                  disabled={paginaPendientes <= 1}
+                  className="p-1 rounded hover:bg-white border border-gray-200 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                  title="Página anterior"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaginaPendientes((p) => Math.min(totalPaginasPendientes, p + 1))}
+                  disabled={paginaPendientes >= totalPaginasPendientes}
+                  className="p-1 rounded hover:bg-white border border-gray-200 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                  title="Página siguiente"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
           )}
         </div>
 
         {/* Formulario de cálculo */}
-        <div className="card lg:col-span-2">
+        <div ref={formCalcRef} className="card lg:col-span-2">
           {!selected ? (
             <div className="flex flex-col items-center justify-center py-16 text-gray-400">
               <Calculator className="h-16 w-16 mb-4 text-gray-300" />
@@ -434,7 +711,9 @@ const CalculatePay = () => {
                       Proveedor: <strong className="text-gray-800">{selected.proveedor?.nombreCompleto}</strong> (CI: {selected.proveedor?.ci})
                     </p>
                   </div>
-                  <span className="badge badge-info">{mineralLabel[selected.tipoMineral]} - {formatKg(selected.kilosBruto)}</span>
+                  <span className={`badge font-mono font-bold ${mineralBadge[selected.tipoMineral]?.badge || 'badge-info'}`}>
+                    {getMineralLabel(selected.tipoMineral)} - {formatKg(selected.kilosBruto)}
+                  </span>
                 </div>
               </div>
 
@@ -443,7 +722,7 @@ const CalculatePay = () => {
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <label className="mb-1 block text-sm font-medium text-gray-700">
-                        Ley ({selected.tipoMineral === 'PLOMO' ? '%' : 'DM'}) *
+                        Ley ({selected.tipoMineral.startsWith('PLOMO') || selected.tipoMineral.startsWith('ESTANO') ? '%' : 'DM'}) *
                       </label>
                       <input
                         type="number"
@@ -458,9 +737,20 @@ const CalculatePay = () => {
                       )}
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">
-                        Valor escala *
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-sm font-medium text-gray-700">
+                          Valor escala *
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenModalEscala('valorEscala', 'ley')}
+                          className="text-xs font-semibold text-primary-600 hover:text-primary-800 flex items-center gap-1 hover:underline transition-colors"
+                          title="Calcular estimación con fórmula (Ley × 3.215 × % × cot × tc ÷ 1000)"
+                        >
+                          <Calculator className="h-3.5 w-3.5" />
+                          <span>Estimar escala</span>
+                        </button>
+                      </div>
                       <input
                         type="number"
                         step="1"
@@ -490,7 +780,18 @@ const CalculatePay = () => {
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-sm text-gray-600">Valor escala plata *</label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-sm text-gray-600">Valor escala plata *</label>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenModalEscala('valorEscalaPlata', 'leyPlata')}
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-800 flex items-center gap-1 hover:underline"
+                            title="Calcular estimación para plata"
+                          >
+                            <Calculator className="h-3 w-3" />
+                            <span>Estimar</span>
+                          </button>
+                        </div>
                         <input
                           type="number"
                           step="1"
@@ -515,7 +816,18 @@ const CalculatePay = () => {
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-sm text-gray-600">Valor escala plomo *</label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-sm text-gray-600">Valor escala plomo *</label>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenModalEscala('valorEscalaPlomo', 'leyPlomo')}
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-800 flex items-center gap-1 hover:underline"
+                            title="Calcular estimación para plomo"
+                          >
+                            <Calculator className="h-3 w-3" />
+                            <span>Estimar</span>
+                          </button>
+                        </div>
                         <input
                           type="number"
                           step="1"
@@ -567,71 +879,96 @@ const CalculatePay = () => {
                   </div>
                 </div>
 
-                {/* Control de Anticipos a Descontar ('La Tranza') */}
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 space-y-3">
+                {/* Control de Anticipos a Descontar (Diseño Compacto con Distintivo Verde-Ámbar) */}
+                <div className="rounded-xl border border-emerald-300/80 bg-gradient-to-br from-emerald-50/70 via-teal-50/30 to-amber-50/60 p-3.5 space-y-3 shadow-2xs">
+                  {/* Fila principal: Título, monto en báscula y botones de acción rápida */}
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h4 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-                        <Coins className="h-4 w-4 text-emerald-600" />
-                        <span>Anticipos a Descontar en Liquidación</span>
-                      </h4>
-                      <p className="text-xs text-gray-600">
-                        Anticipo en báscula registrado al pesar:{' '}
-                        <span className="font-bold text-emerald-800">{formatBs(selected.anticipo)}</span>
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-emerald-100/80 text-emerald-800 border border-emerald-300">
+                        <Coins className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-900">
+                          Anticipos a Descontar
+                        </h4>
+                        <p className="text-xs text-gray-600">
+                          En báscula:{' '}
+                          <strong className="text-emerald-800 font-mono font-bold">
+                            {formatBs(selected.anticipo)}
+                          </strong>
+                        </p>
+                      </div>
                     </div>
 
-                    {/* Botones de acción rápida */}
+                    {/* Botones de acción rápida y botón de historial */}
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => setValue('anticipos', Math.trunc(Number(selected.anticipo) || 0), { shouldDirty: true })}
-                        className="btn btn-secondary btn-sm text-xs border-emerald-300 text-emerald-800 hover:bg-emerald-100"
+                        className="px-2.5 py-1 text-xs font-semibold rounded border border-emerald-400 bg-emerald-100/90 text-emerald-900 hover:bg-emerald-200 transition-colors shadow-2xs"
                         title="Descontar el total de anticipos entregados"
                       >
-                        Descontar Todo ({formatBs(selected.anticipo)})
+                        Todo ({formatBs(selected.anticipo)})
                       </button>
                       <button
                         type="button"
                         onClick={() => setValue('anticipos', 0, { shouldDirty: true })}
-                        className="btn btn-secondary btn-sm text-xs text-gray-700 hover:bg-gray-100"
+                        className="px-2.5 py-1 text-xs font-medium rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-gray-100 transition-colors shadow-2xs"
                         title="No descontar anticipo en este cálculo"
                       >
-                        No Descontar (Bs 0)
+                        Bs 0
                       </button>
+                      {anticiposHistorial.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAnticiposDesglose(!showAnticiposDesglose)}
+                          className="ml-1 px-2 py-1 text-xs font-medium text-emerald-900 hover:text-emerald-950 border border-emerald-300/80 rounded bg-white/90 hover:bg-emerald-50 flex items-center gap-1 transition-colors shadow-2xs"
+                          title="Ver o esconder historial de entregas"
+                        >
+                          <span>Historial ({anticiposHistorial.length})</span>
+                          {showAnticiposDesglose ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                  {/* Fila de Input y estado en línea */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center pt-1 border-t border-emerald-200/50">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        Monto de báscula a descontar hoy (Bs) *
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Monto a descontar hoy (Bs) *
                       </label>
                       <input
                         type="number"
                         min="0"
                         step="1"
                         {...register('anticipos', { min: 0 })}
-                        className="input bg-white text-base font-semibold text-emerald-900 border-emerald-300 focus:border-emerald-500"
+                        className="input bg-white text-sm font-semibold text-gray-900 border-emerald-300 focus:bg-white focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                         placeholder="0"
                       />
                     </div>
-                    <div className="text-xs">
-                      {Number(formValues.anticipos || 0) < Number(selected.anticipo) ? (
-                        <div className="rounded border border-amber-200 bg-amber-50 p-2.5 text-amber-800">
-                          ⚠️ <strong>Saldo pendiente de cobro:</strong> Quedarán{' '}
-                          <span className="font-bold text-amber-900">
+
+                    {/* Estado contextual compacto */}
+                    <div className="text-xs pt-1 sm:pt-4">
+                      {Number(selected.anticipo) === 0 && Number(formValues.anticipos || 0) === 0 ? (
+                        <span className="inline-flex items-center gap-1 text-gray-500">
+                          ℹ️ Lote sin anticipos entregados en báscula.
+                        </span>
+                      ) : Number(formValues.anticipos || 0) < Number(selected.anticipo) ? (
+                        <div className="rounded border border-amber-200 bg-amber-50/80 px-2.5 py-1.5 text-[11px] text-amber-800 flex items-center justify-between">
+                          <span>⚠️ <strong>Saldo pendiente:</strong></span>
+                          <span className="font-mono font-bold text-amber-900">
                             {formatBs(Number(selected.anticipo) - Number(formValues.anticipos || 0))}
-                          </span>{' '}
-                          de anticipo de báscula sin descontar.
+                          </span>
                         </div>
                       ) : Number(formValues.anticipos || 0) === Number(selected.anticipo) ? (
-                        <div className="text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 rounded p-2.5">
-                          ✅ Se descontará el 100% del anticipo de báscula.
+                        <div className="rounded border border-emerald-200 bg-emerald-50/70 px-2.5 py-1.5 text-[11px] text-emerald-800 flex items-center gap-1.5">
+                          <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                          <span>Se descuenta el 100% del anticipo de báscula.</span>
                         </div>
                       ) : (
-                        <div className="text-blue-700 font-medium bg-blue-50 border border-blue-200 rounded p-2.5">
-                          ℹ️ Se descontará un monto superior al anticipo inicial registrado.
+                        <div className="rounded border border-blue-200 bg-blue-50/70 px-2.5 py-1.5 text-[11px] text-blue-800">
+                          ℹ️ Monto mayor al anticipo inicial registrado.
                         </div>
                       )}
                     </div>
@@ -639,68 +976,62 @@ const CalculatePay = () => {
 
                   {/* AVISO / BOTÓN DE ANTICIPOS EN CUENTA DEL PROVEEDOR */}
                   {anticiposCuentaProveedor.length > 0 && (
-                    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <p className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                          <AlertTriangle className="h-4 w-4 text-amber-600" />
-                          <span>Este proveedor tiene anticipos pendientes en cuenta general</span>
-                        </p>
-                        <p className="text-[11px] text-amber-800 mt-0.5">
-                          Deuda total: <strong>{formatBs(totalDeudaProveedor)}</strong> • Acordado a descontar hoy:{' '}
-                          <strong className="text-emerald-800">{formatBs(totalDescuentoProveedor)}</strong>
-                        </p>
+                    <div className="rounded-md border border-amber-200 bg-amber-50/70 p-2.5 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                        <div className="text-xs text-amber-900">
+                          <span>Proveedor con anticipos en cuenta general.</span>
+                          <span className="ml-1 text-[11px] text-amber-700">
+                            (Deuda: <strong>{formatBs(totalDeudaProveedor)}</strong> • Descontar: <strong className="text-emerald-700">{formatBs(totalDescuentoProveedor)}</strong>)
+                          </span>
+                        </div>
                       </div>
 
                       <button
                         type="button"
                         onClick={() => setModalAnticiposProveedorOpen(true)}
-                        className="btn btn-primary btn-sm bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 shadow-sm inline-flex items-center gap-1.5"
+                        className="btn btn-secondary btn-sm border-amber-300 text-amber-900 hover:bg-amber-100 text-xs font-semibold px-2.5 py-1 inline-flex items-center gap-1"
                       >
-                        <Receipt className="h-3.5 w-3.5" />
-                        <span>Ver / Tranzar Descuentos ({anticiposCuentaProveedor.length})</span>
+                        <Receipt className="h-3 w-3" />
+                        <span>Tranzar Cuenta ({anticiposCuentaProveedor.length})</span>
                       </button>
                     </div>
                   )}
 
-                  {/* Pestaña para ver el historial de fechas de cada entrega en báscula */}
-                  {anticiposHistorial.length > 0 && (
-                    <div className="border-t border-emerald-200/80 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowAnticiposDesglose(!showAnticiposDesglose)}
-                        className="text-xs text-emerald-800 hover:text-emerald-900 font-medium flex items-center gap-1"
-                      >
-                        <span>📋 Ver historial de fechas en báscula ({anticiposHistorial.length} entrega{anticiposHistorial.length !== 1 ? 's' : ''})</span>
-                        {showAnticiposDesglose ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                      </button>
-                      {showAnticiposDesglose && (
-                        <div className="mt-2 overflow-x-auto rounded border border-gray-200 bg-white">
-                          <table className="table text-xs">
-                            <thead className="table-header">
-                              <tr className="table-header-row bg-gray-50">
-                                <th className="table-header-cell">Fecha</th>
-                                <th className="table-header-cell">Motivo</th>
-                                <th className="table-header-cell">Entregado por</th>
-                                <th className="table-header-cell text-right">Monto</th>
+                  {/* Historial colapsable de entregas en báscula */}
+                  {anticiposHistorial.length > 0 && showAnticiposDesglose && (
+                    <div className="border-t border-slate-100 pt-2.5">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-semibold text-gray-700">
+                          Historial de entregas en báscula ({anticiposHistorial.length}):
+                        </span>
+                      </div>
+                      <div className="overflow-x-auto rounded border border-gray-200 bg-white">
+                        <table className="table text-xs">
+                          <thead className="table-header">
+                            <tr className="table-header-row bg-gray-50 text-gray-600">
+                              <th className="table-header-cell py-1.5">Fecha</th>
+                              <th className="table-header-cell py-1.5">Motivo</th>
+                              <th className="table-header-cell py-1.5">Operador</th>
+                              <th className="table-header-cell py-1.5 text-right">Monto</th>
+                            </tr>
+                          </thead>
+                          <tbody className="table-body">
+                            {anticiposHistorial.map((a) => (
+                              <tr key={a.id} className="table-row">
+                                <td className="table-cell py-1.5 font-mono text-gray-600">
+                                  {new Date(a.fecha).toLocaleDateString('es-BO')}
+                                </td>
+                                <td className="table-cell py-1.5">{a.glosa || a.observacion || 'Adelanto en efectivo'}</td>
+                                <td className="table-cell py-1.5 text-gray-500">{a.usuario?.nombre || 'Balanza'}</td>
+                                <td className="table-cell py-1.5 text-right font-mono font-bold text-emerald-700">
+                                  {formatBs(a.monto)}
+                                </td>
                               </tr>
-                            </thead>
-                            <tbody className="table-body">
-                              {anticiposHistorial.map((a) => (
-                                <tr key={a.id} className="table-row">
-                                  <td className="table-cell font-mono text-gray-600">
-                                    {new Date(a.fecha).toLocaleDateString('es-BO')}
-                                  </td>
-                                  <td className="table-cell">{a.glosa || a.observacion || 'Adelanto en efectivo'}</td>
-                                  <td className="table-cell text-gray-500">{a.usuario?.nombre || 'Balanza'}</td>
-                                  <td className="table-cell text-right font-mono font-bold text-emerald-700">
-                                    {formatBs(a.monto)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -773,9 +1104,42 @@ const CalculatePay = () => {
                         </div>
                       )}
 
-                      <div className="flex justify-between border-t-2 border-gray-300 pt-2 text-base">
-                        <dt className="font-bold text-gray-900">Saldo final</dt>
-                        <dd className="font-bold text-primary-700">{formatBs(preview.saldoFinal)}</dd>
+                      {/* Saldo Final con Diferenciación Visual Inteligente (Positivo / Negativo) */}
+                      <div className={`mt-3 rounded-xl p-3 border-2 transition-all ${
+                        preview.saldoFinal < 0
+                          ? 'bg-red-50/90 border-red-300 text-red-950 shadow-xs'
+                          : preview.saldoFinal > 0
+                          ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950 shadow-xs'
+                          : 'bg-gray-100 border-gray-300 text-gray-800'
+                      }`}>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <dt className="text-xs uppercase font-extrabold tracking-wider flex items-center gap-1.5">
+                              {preview.saldoFinal < 0 ? (
+                                <>
+                                  <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+                                  <span className="text-red-800 font-bold">Saldo Negativo (Déficit / En contra)</span>
+                                </>
+                              ) : preview.saldoFinal > 0 ? (
+                                <>
+                                  <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+                                  <span className="text-emerald-800 font-bold">Saldo Positivo (A pagar)</span>
+                                </>
+                              ) : (
+                                <span>Saldo Liquidado (Bs 0)</span>
+                              )}
+                            </dt>
+                          </div>
+                          <dd className={`text-xl font-black font-mono tracking-tight px-3 py-1 rounded-lg ${
+                            preview.saldoFinal < 0
+                              ? 'text-red-700 bg-white border border-red-300 shadow-2xs'
+                              : preview.saldoFinal > 0
+                              ? 'text-emerald-700 bg-white border border-emerald-300 shadow-2xs'
+                              : 'text-gray-800 bg-white border border-gray-300'
+                          }`}>
+                            {formatBs(preview.saldoFinal)}
+                          </dd>
+                        </div>
                       </div>
                     </dl>
                   </div>
@@ -927,6 +1291,146 @@ const CalculatePay = () => {
         </Modal>
       )}
 
+      {/* MODAL SIMPLE PARA ESTIMAR VALOR DE ESCALA */}
+      {modalEscalaOpen && (
+        <Modal
+          open={modalEscalaOpen}
+          onClose={() => setModalEscalaOpen(false)}
+          title="Calculadora Rápida de Valor de Escala"
+          size="md"
+        >
+          <div className="space-y-4">
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-900">
+              <p className="font-bold flex items-center gap-1.5 mb-0.5">
+                <Calculator className="h-4 w-4 text-blue-600" />
+                <span>Fórmula de Estimación:</span>
+              </p>
+              <p className="font-mono text-[11px] text-blue-800">
+                (Ley × 3.215 × % Recuperación × Cotización × Tipo de Cambio) ÷ 1000
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              {/* Ley */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  Ley (DM / %):
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={modalEscalaData.ley}
+                  onChange={(e) => setModalEscalaData((prev) => ({ ...prev, ley: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
+                  className="input input-sm text-xs font-mono font-bold w-full"
+                  placeholder="Ej: 30"
+                />
+              </div>
+
+              {/* Factor Estático */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  Factor Fijo:
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  value="3.215 (estático)"
+                  className="input input-sm text-xs font-mono bg-gray-100 text-gray-600 cursor-not-allowed w-full border-gray-200"
+                />
+              </div>
+
+              {/* % Recuperación */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  % Recuperación / Pago:
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="any"
+                    value={modalEscalaData.porcentaje}
+                    onChange={(e) => setModalEscalaData((prev) => ({ ...prev, porcentaje: e.target.value }))}
+                    onFocus={(e) => e.target.select()}
+                    className="input input-sm text-xs font-mono font-bold w-full pr-7"
+                    placeholder="75"
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 font-bold">%</span>
+                </div>
+              </div>
+
+              {/* Cotización */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  Cotización Internacional (USD):
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={modalEscalaData.cotizacion}
+                  onChange={(e) => setModalEscalaData((prev) => ({ ...prev, cotizacion: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
+                  className="input input-sm text-xs font-mono font-bold w-full"
+                  placeholder="Ej: 48"
+                />
+              </div>
+
+              {/* Tipo de Cambio */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  Tipo de Cambio (T.C.):
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={modalEscalaData.tipoCambio}
+                  onChange={(e) => setModalEscalaData((prev) => ({ ...prev, tipoCambio: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
+                  className="input input-sm text-xs font-mono font-bold w-full"
+                  placeholder="Ej: 11"
+                />
+              </div>
+
+              {/* Tarjeta de Resultado Calculado */}
+              <div className="flex flex-col justify-end">
+                <div className="rounded-lg bg-emerald-50 border-2 border-emerald-300 p-2.5 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-emerald-800 font-bold block uppercase">Valor Escala Estimado:</span>
+                    <span className="text-[11px] text-gray-600 font-mono">Bs el Kilo</span>
+                  </div>
+                  <span className="text-2xl font-black font-mono text-emerald-700">
+                    {resultadoEscalaCalculado}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Desglose de operaciones */}
+            <div className="rounded bg-slate-50 border border-slate-200 p-2.5 text-[11px] text-slate-700 font-mono">
+              Operación: ({Number(modalEscalaData.ley) || 0} × 3.215 × {(Number(modalEscalaData.porcentaje) || 0) / 100} × {Number(modalEscalaData.cotizacion) || 0} × {Number(modalEscalaData.tipoCambio) || 0}) ÷ 1000 = <strong className="text-emerald-700 font-bold text-xs">{resultadoEscalaCalculado} Bs/kg</strong>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setModalEscalaOpen(false)}
+                className="btn btn-secondary btn-sm text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAplicarEscala(resultadoEscalaCalculado)}
+                className="btn btn-primary btn-sm text-xs font-bold inline-flex items-center gap-1.5 shadow-sm"
+              >
+                <Check className="h-3.5 w-3.5" />
+                <span>Aplicar al Valor de Escala ({resultadoEscalaCalculado})</span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* Cálculos pendientes de pago */}
       <div className="card shadow-sm border border-gray-200 overflow-hidden">
         <div className="card-header bg-gradient-to-r from-gray-50 to-white border-b border-gray-200 py-4 px-6 flex flex-wrap items-center justify-between gap-3">
@@ -1010,9 +1514,20 @@ const CalculatePay = () => {
                         {formatBs(calculo.valorBruto)}
                       </td>
 
-                      {/* Saldo Final Destacado */}
+                      {/* Saldo Final Destacado con Color según Positivo/Negativo */}
                       <td className="py-4 px-5 text-right whitespace-nowrap">
-                        <span className="inline-block font-mono font-bold text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg">
+                        <span className={`inline-flex items-center gap-1 font-mono font-bold text-sm px-3 py-1 rounded-lg border ${
+                          Number(calculo.saldoFinal) < 0
+                            ? 'text-red-800 bg-red-50 border-red-300'
+                            : Number(calculo.saldoFinal) > 0
+                            ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                            : 'text-gray-800 bg-gray-100 border-gray-300'
+                        }`}>
+                          {Number(calculo.saldoFinal) < 0 && (
+                            <span className="text-[10px] uppercase font-bold text-red-600 bg-red-100 px-1 rounded mr-0.5">
+                              En contra
+                            </span>
+                          )}
                           {formatBs(calculo.saldoFinal)}
                         </span>
                       </td>
@@ -1074,12 +1589,20 @@ const CalculatePay = () => {
                   Proveedor: <strong className="text-gray-900">{modalConfirmarPago.internacion.proveedor?.nombreCompleto}</strong>
                 </p>
                 <p className="text-xs text-gray-600">
-                  Mineral: <span className="font-semibold text-gray-800">{mineralLabel[modalConfirmarPago.tipoMineral]}</span> · Kilos Bruto: {formatKg(modalConfirmarPago.internacion?.kilosBruto)}
+                  Mineral: <span className="font-semibold text-gray-800">{getMineralLabel(modalConfirmarPago.tipoMineral)}</span> · Kilos Bruto: {formatKg(modalConfirmarPago.internacion?.kilosBruto)}
                 </p>
               </div>
-              <div className="pt-2 border-t border-emerald-200/80 flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-600">Monto total a cancelar:</span>
-                <span className="text-xl font-black font-mono text-emerald-700">
+              <div className={`pt-2 border-t flex items-center justify-between ${
+                Number(modalConfirmarPago.saldoFinal) < 0 ? 'border-red-200' : 'border-emerald-200/80'
+              }`}>
+                <span className="text-xs font-semibold text-gray-600">
+                  {Number(modalConfirmarPago.saldoFinal) < 0
+                    ? 'Saldo en contra (Déficit a cobrar al proveedor):'
+                    : 'Monto total a cancelar:'}
+                </span>
+                <span className={`text-xl font-black font-mono ${
+                  Number(modalConfirmarPago.saldoFinal) < 0 ? 'text-red-700' : 'text-emerald-700'
+                }`}>
                   {formatBs(modalConfirmarPago.saldoFinal)}
                 </span>
               </div>
@@ -1096,7 +1619,21 @@ const CalculatePay = () => {
                 disabled={pagandoLote}
                 className="btn btn-secondary btn-sm w-full sm:w-auto text-xs px-3"
               >
-                Cancelar
+                Pagar Después / Cerrar
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePrintOrDownloadReceipt(modalConfirmarPago)}
+                disabled={pagandoLote || descargandoId === modalConfirmarPago.id}
+                className="btn btn-secondary btn-sm w-full sm:w-auto text-xs px-3 text-slate-700 border-slate-300 hover:bg-slate-50 inline-flex items-center justify-center gap-1.5"
+                title="Descargar o imprimir comprobante oficial sin asentar pago todavía"
+              >
+                {descargandoId === modalConfirmarPago.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <FileDown className="h-3.5 w-3.5 text-slate-600" />
+                )}
+                <span>Solo Imprimir</span>
               </button>
               <button
                 type="button"

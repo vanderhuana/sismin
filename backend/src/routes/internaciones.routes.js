@@ -7,6 +7,7 @@ import { validateData, internacionSchemas } from '../utils/validations.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 import { generarLote, formatearMoneda, formatearPeso } from '../utils/calculations.js';
 import { numeroALetras } from '../utils/numeroALetras.js';
+import { generarCodigoVale } from './anticipos.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -205,7 +206,9 @@ router.get('/stats/dashboard', async (req, res, next) => {
       calculadas,
       pagadas,
       totalKilos,
-      totalPagado
+      totalPagado,
+      totalAnticipos,
+      porMineral
     ] = await Promise.all([
       req.prisma.internacion.count(),
       req.prisma.internacion.count({ where: { estado: 'EN_ESPERA_LEY' } }),
@@ -215,6 +218,12 @@ router.get('/stats/dashboard', async (req, res, next) => {
       req.prisma.calculo.aggregate({
         where: { estadoPago: 'PAGADO' },
         _sum: { saldoFinal: true }
+      }),
+      req.prisma.internacion.aggregate({ _sum: { anticipo: true } }),
+      req.prisma.internacion.groupBy({
+        by: ['tipoMineral'],
+        _count: { id: true },
+        _sum: { kilosBruto: true }
       })
     ]);
 
@@ -222,40 +231,97 @@ router.get('/stats/dashboard', async (req, res, next) => {
       totalInternaciones,
       estados: { enEsperaLey, calculadas, pagadas },
       totalKilosBruto: totalKilos._sum.kilosBruto || 0,
-      totalPagado: totalPagado._sum.saldoFinal || 0
+      totalPagado: totalPagado._sum.saldoFinal || 0,
+      totalAnticipos: totalAnticipos._sum.anticipo || 0,
+      porMineral: porMineral || []
     });
   } catch (error) {
     next(error);
   }
 });
 
-// GET /api/internaciones/next-lote - Sugerencia de próximo lote correlativo
+// Función utilitaria para calcular el siguiente lote correlativo respetando cualquier nomenclatura (ej: c-201 -> c-202, p-505 -> p-506)
+const calcularSiguienteLote = (baseReferencia, todasLasInternaciones, ultimoLote) => {
+  const lotesExistentes = new Set(
+    todasLasInternaciones.map((i) => (i.lote ? i.lote.toUpperCase().trim() : ''))
+  );
+
+  let targetStr = (baseReferencia && typeof baseReferencia === 'string' && baseReferencia.trim())
+    ? baseReferencia.trim()
+    : (ultimoLote || '');
+
+  let match = targetStr.match(/^(.*?)(\d+)$/);
+
+  // Si el usuario escribió un prefijo sin números (ej: "c-", "p-", "sn-")
+  if (!match && targetStr) {
+    const escPrefix = targetStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`^${escPrefix}(\\d+)$`, 'i');
+    let maxFound = 0;
+    let foundPadding = 3;
+    for (const item of todasLasInternaciones) {
+      const m = item.lote && item.lote.match(regex);
+      if (m) {
+        const val = parseInt(m[1], 10);
+        if (val > maxFound) {
+          maxFound = val;
+          foundPadding = m[1].length;
+        }
+      }
+    }
+    if (maxFound > 0) {
+      targetStr = `${targetStr}${maxFound}`;
+      match = targetStr.match(/^(.*?)(\d+)$/);
+    } else {
+      targetStr = `${targetStr}000`;
+      match = targetStr.match(/^(.*?)(\d+)$/);
+    }
+  }
+
+  let prefix = 'LOTE-';
+  let startNum = 1;
+  let padding = 3;
+
+  if (match) {
+    prefix = match[1];
+    padding = match[2].length;
+    startNum = parseInt(match[2], 10) + 1;
+  } else {
+    // Si no hay último lote ni base, buscar el número más alto en LOTE-(\d+)
+    let maxNum = 0;
+    for (const item of todasLasInternaciones) {
+      const m = item.lote && item.lote.match(/LOTE-(\d+)/i);
+      if (m) {
+        const val = parseInt(m[1], 10);
+        if (val > maxNum) maxNum = val;
+      }
+    }
+    startNum = maxNum + 1;
+  }
+
+  let nextNum = startNum;
+  let candidato = `${prefix}${nextNum.toString().padStart(padding, '0')}`;
+  while (lotesExistentes.has(candidato.toUpperCase())) {
+    nextNum++;
+    candidato = `${prefix}${nextNum.toString().padStart(padding, '0')}`;
+  }
+
+  return candidato;
+};
+
+// GET /api/internaciones/next-lote - Sugerencia de próximo lote correlativo inteligente
 router.get('/next-lote', async (req, res, next) => {
   try {
+    const { base } = req.query;
     const todasLasInternaciones = await req.prisma.internacion.findMany({
       select: { lote: true }
     });
-    const lotesExistentes = new Set(
-      todasLasInternaciones.map((i) => (i.lote ? i.lote.toUpperCase() : ''))
-    );
+    const ultimo = await req.prisma.internacion.findFirst({
+      orderBy: { id: 'desc' },
+      select: { lote: true }
+    });
     
-    let maxNum = 0;
-    for (const item of todasLasInternaciones) {
-      const match = item.lote && item.lote.match(/LOTE-(\d+)/i);
-      if (match) {
-        const val = parseInt(match[1], 10);
-        if (!isNaN(val) && val > maxNum) maxNum = val;
-      }
-    }
-    
-    let nextNum = maxNum + 1;
-    let lote = `LOTE-${nextNum.toString().padStart(3, '0')}`;
-    while (lotesExistentes.has(lote.toUpperCase())) {
-      nextNum++;
-      lote = `LOTE-${nextNum.toString().padStart(3, '0')}`;
-    }
-    
-    res.json({ nextLote: lote });
+    const nextLote = calcularSiguienteLote(base, todasLasInternaciones, ultimo?.lote);
+    res.json({ nextLote });
   } catch (error) {
     next(error);
   }
@@ -369,25 +435,11 @@ router.post('/', async (req, res, next) => {
       const todasLasInternaciones = await req.prisma.internacion.findMany({
         select: { lote: true }
       });
-      const lotesExistentes = new Set(
-        todasLasInternaciones.map((i) => (i.lote ? i.lote.toUpperCase() : ''))
-      );
-      
-      let maxNum = 0;
-      for (const item of todasLasInternaciones) {
-        const match = item.lote && item.lote.match(/LOTE-(\d+)/i);
-        if (match) {
-          const val = parseInt(match[1], 10);
-          if (!isNaN(val) && val > maxNum) maxNum = val;
-        }
-      }
-      
-      let nextNum = maxNum + 1;
-      lote = `LOTE-${nextNum.toString().padStart(3, '0')}`;
-      while (lotesExistentes.has(lote.toUpperCase())) {
-        nextNum++;
-        lote = `LOTE-${nextNum.toString().padStart(3, '0')}`;
-      }
+      const ultimo = await req.prisma.internacion.findFirst({
+        orderBy: { id: 'desc' },
+        select: { lote: true }
+      });
+      lote = calcularSiguienteLote('', todasLasInternaciones, ultimo?.lote);
     }
     
     const nuevaInternacion = await req.prisma.internacion.create({
@@ -413,17 +465,20 @@ router.post('/', async (req, res, next) => {
         }
       }
     });
-    
-    // Si se registró un anticipo inicial en báscula, crear el registro en el historial
-    const montoInicial = Math.trunc(Number(nuevaInternacion.anticipo) || 0);
-    if (montoInicial > 0) {
+
+    // Si se registró un anticipo inicial en báscula, crear el registro cronológico inicial
+    const anticipoInicial = Math.trunc(Number(internacionData.anticipo) || 0);
+    if (anticipoInicial > 0) {
+      const codigoVale = await generarCodigoVale(req.prisma);
       await req.prisma.anticipo.create({
         data: {
-          internacionId: nuevaInternacion.id,
+          codigoVale,
           proveedorId: nuevaInternacion.proveedorId,
-          monto: montoInicial,
-          glosa: 'Anticipo inicial en báscula',
-          observacion: 'Anticipo inicial en báscula',
+          internacionId: nuevaInternacion.id,
+          monto: anticipoInicial,
+          saldoPendiente: anticipoInicial,
+          estado: 'PENDIENTE',
+          glosa: `Anticipo inicial registrado en báscula para ${nuevaInternacion.lote}`,
           usuarioId: req.user.id
         }
       });
@@ -685,7 +740,7 @@ router.get('/:id/boleta', async (req, res, next) => {
     if (hasCalculo) {
       if (calculo.tipoMineral === 'COMPLEJO') {
         leyTexto = `Ag: ${calculo.leyPlata ?? '—'} DM  |  Pb: ${calculo.leyPlomo ?? '—'} %`;
-      } else if (calculo.tipoMineral === 'PLOMO') {
+      } else if (calculo.tipoMineral.startsWith('PLOMO') || calculo.tipoMineral.startsWith('ESTANO')) {
         leyTexto = `${calculo.ley ?? '—'} %`;
       } else {
         leyTexto = `${calculo.ley ?? '—'} DM`;

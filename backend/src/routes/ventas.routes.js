@@ -35,9 +35,23 @@ router.get('/disponibles', async (req, res, next) => {
       }
     ];
 
-    // Filtro por mineral (si es específico)
+    // Filtro por mineral (si es específico o familia)
     if (tipoMineral && tipoMineral !== 'TODOS') {
-      whereConditions.push({ tipoMineral });
+      if (tipoMineral === 'PLATA') {
+        whereConditions.push({
+          tipoMineral: { in: ['PLATA', 'PLATA_OXIDO', 'PLATA_PIRITA', 'PIRITA', 'OXIDO'] }
+        });
+      } else if (tipoMineral === 'PLOMO') {
+        whereConditions.push({
+          tipoMineral: { in: ['PLOMO', 'PLOMO_OXIDO', 'PLOMO_PIRITA'] }
+        });
+      } else if (tipoMineral === 'ESTANO') {
+        whereConditions.push({
+          tipoMineral: { in: ['ESTANO', 'ESTANO_OXIDO', 'ESTANO_PIRITA'] }
+        });
+      } else {
+        whereConditions.push({ tipoMineral });
+      }
     }
 
     // Filtro por estado de venta: DISPONIBLES (por defecto), VENDIDOS o TODOS
@@ -91,14 +105,20 @@ router.get('/disponibles', async (req, res, next) => {
       let promedio_ag = null;
       let ley_pb = null;
       let promedio_pb = null;
+      let ley_sn = null;
+      let promedio_sn = null;
 
-      if (it.tipoMineral === 'PLATA' || it.tipoMineral === 'PIRITA' || it.tipoMineral === 'OXIDO') {
+      const min = it.tipoMineral || '';
+      if (min.startsWith('PLATA') || min === 'PIRITA' || min === 'OXIDO') {
         ley_ag = Math.trunc(Number(calc?.ley || 0));
         promedio_ag = Math.trunc(peso * ley_ag);
-      } else if (it.tipoMineral === 'PLOMO') {
+      } else if (min.startsWith('PLOMO')) {
         ley_pb = Math.trunc(Number(calc?.ley || 0));
         promedio_pb = Math.trunc(peso * ley_pb);
-      } else if (it.tipoMineral === 'COMPLEJO') {
+      } else if (min.startsWith('ESTANO')) {
+        ley_sn = Math.trunc(Number(calc?.ley || 0));
+        promedio_sn = Math.trunc(peso * ley_sn);
+      } else if (min === 'COMPLEJO') {
         ley_ag = Math.trunc(Number(calc?.leyPlata || 0));
         promedio_ag = Math.trunc(peso * ley_ag);
         ley_pb = Math.trunc(Number(calc?.leyPlomo || 0));
@@ -120,6 +140,8 @@ router.get('/disponibles', async (req, res, next) => {
         promedio_ag,
         ley_pb,
         promedio_pb,
+        ley_sn,
+        promedio_sn,
         costo,
         yaVendido,
         loteGeneralVendido
@@ -130,7 +152,7 @@ router.get('/disponibles', async (req, res, next) => {
     if (leyMin !== undefined && leyMin !== '' && !isNaN(Number(leyMin))) {
       const min = Number(leyMin);
       registros = registros.filter((r) => {
-        const val = r.tipoMineral === 'PLOMO' ? r.ley_pb : r.ley_ag;
+        const val = r.ley_sn ?? r.ley_pb ?? r.ley_ag;
         return val !== null && val >= min;
       });
     }
@@ -138,7 +160,7 @@ router.get('/disponibles', async (req, res, next) => {
     if (leyMax !== undefined && leyMax !== '' && !isNaN(Number(leyMax))) {
       const max = Number(leyMax);
       registros = registros.filter((r) => {
-        const val = r.tipoMineral === 'PLOMO' ? r.ley_pb : r.ley_ag;
+        const val = r.ley_sn ?? r.ley_pb ?? r.ley_ag;
         return val !== null && val <= max;
       });
     }
@@ -147,10 +169,12 @@ router.get('/disponibles', async (req, res, next) => {
     const totalPeso = registros.reduce((sum, r) => sum + r.peso, 0);
     const totalPromAg = registros.reduce((sum, r) => sum + (r.promedio_ag || 0), 0);
     const totalPromPb = registros.reduce((sum, r) => sum + (r.promedio_pb || 0), 0);
+    const totalPromSn = registros.reduce((sum, r) => sum + (r.promedio_sn || 0), 0);
     const totalCosto = registros.reduce((sum, r) => sum + r.costo, 0);
 
-    const leyAgPond = totalPeso > 0 ? totalPromAg / totalPeso : 0;
-    const leyPbPond = totalPeso > 0 ? totalPromPb / totalPeso : 0;
+    const leyAgPond = totalPeso > 0 && totalPromAg > 0 ? totalPromAg / totalPeso : 0;
+    const leyPbPond = totalPeso > 0 && totalPromPb > 0 ? totalPromPb / totalPeso : 0;
+    const leySnPond = totalPeso > 0 && totalPromSn > 0 ? totalPromSn / totalPeso : 0;
 
     res.json({
       material: tipoMineral || 'TODOS',
@@ -161,10 +185,13 @@ router.get('/disponibles', async (req, res, next) => {
         peso: totalPeso,
         promedio_ag: totalPromAg,
         promedio_pb: totalPromPb,
+        promedio_sn: totalPromSn,
         ley_ag_ponderada_calculada: Number(leyAgPond.toFixed(4)),
         ley_ag_ponderada_escrita: Number(leyAgPond.toFixed(2)),
         ley_pb_ponderada_calculada: Number(leyPbPond.toFixed(4)),
         ley_pb_ponderada_escrita: Number(leyPbPond.toFixed(2)),
+        ley_sn_ponderada_calculada: Number(leySnPond.toFixed(4)),
+        ley_sn_ponderada_escrita: Number(leySnPond.toFixed(2)),
         costoTotal: totalCosto
       }
     });
@@ -237,7 +264,14 @@ router.post('/', async (req, res, next) => {
     let mineralFinal = tipoMineral;
     const tiposEnLotes = [...new Set(internaciones.map((it) => it.tipoMineral))];
 
-    if (!mineralFinal || mineralFinal === 'TODOS' || !['PLATA', 'PLOMO', 'COMPLEJO', 'PIRITA', 'OXIDO'].includes(mineralFinal)) {
+    const ALL_MINERALES = [
+      'PLATA', 'PLATA_OXIDO', 'PLATA_PIRITA',
+      'PLOMO', 'PLOMO_OXIDO', 'PLOMO_PIRITA',
+      'ESTANO', 'ESTANO_OXIDO', 'ESTANO_PIRITA',
+      'COMPLEJO', 'PIRITA', 'OXIDO'
+    ];
+
+    if (!mineralFinal || mineralFinal === 'TODOS' || !ALL_MINERALES.includes(mineralFinal)) {
       if (tiposEnLotes.length === 1) {
         mineralFinal = tiposEnLotes[0];
       } else if (tiposEnLotes.includes('COMPLEJO') || (tiposEnLotes.includes('PLATA') && tiposEnLotes.includes('PLOMO'))) {
@@ -264,10 +298,10 @@ router.post('/', async (req, res, next) => {
 
       // Calcular según el tipo de mineral real de cada internación
       const minLote = it.tipoMineral;
-      if (minLote === 'PLATA' || minLote === 'PIRITA' || minLote === 'OXIDO') {
+      if (minLote.startsWith('PLATA') || minLote === 'PIRITA' || minLote === 'OXIDO') {
         leyAg = Math.trunc(Number(calc?.ley || 0));
         promAg = Math.trunc(peso * leyAg);
-      } else if (minLote === 'PLOMO') {
+      } else if (minLote.startsWith('PLOMO') || minLote.startsWith('ESTANO')) {
         leyPb = Math.trunc(Number(calc?.ley || 0));
         promPb = Math.trunc(peso * leyPb);
       } else if (minLote === 'COMPLEJO') {
@@ -461,6 +495,7 @@ router.get('/:id/excel', async (req, res, next) => {
     }
     sheet.addRow([]);
 
+    const isEstanoExcel = (venta.tipoMineral || '').toUpperCase().startsWith('ESTANO');
     // Cabecera de la tabla
     const headerRow = sheet.addRow([
       'Lote',
@@ -468,8 +503,8 @@ router.get('/:id/excel', async (req, res, next) => {
       'Peso Bruto (kg)',
       'Ley Ag (DM)',
       'Promedio Ag',
-      'Ley Pb (%)',
-      'Promedio Pb',
+      isEstanoExcel ? 'Ley Sn (%)' : 'Ley Pb (%)',
+      isEstanoExcel ? 'Promedio Sn' : 'Promedio Pb',
       'Valor Bruto (Bs)'
     ]);
 
@@ -539,7 +574,7 @@ router.get('/:id/excel', async (req, res, next) => {
     pondRow1.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF047857' } };
 
     if (venta.leyPonderadaPb) {
-      const pondRow2 = sheet.addRow(['LEY PONDERADA PB:', Number(venta.leyPonderadaPb).toFixed(2)]);
+      const pondRow2 = sheet.addRow([isEstanoExcel ? 'LEY PONDERADA SN:' : 'LEY PONDERADA PB:', Number(venta.leyPonderadaPb).toFixed(2)]);
       pondRow2.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF047857' } };
     }
 
@@ -608,6 +643,7 @@ router.get('/:id/pdf', async (req, res, next) => {
     const mineralUpper = (venta.tipoMineral || '').toUpperCase();
     const isComplejo = mineralUpper.includes('COMPLEJO');
     const isPlomo = mineralUpper.includes('PLOMO');
+    const isEstano = mineralUpper.includes('ESTANO');
 
     // 1. Marca de agua
     const renderWatermark = () => {
@@ -682,7 +718,7 @@ router.get('/:id/pdf', async (req, res, next) => {
     // Columna 3
     doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#64748b').text('LEY REF. AG:', 410, 102);
     doc.font('Helvetica').fontSize(8.5).fillColor('#0f172a').text(venta.leyReferenciaAg != null ? `${venta.leyReferenciaAg} DM` : '—', 475, 102);
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#64748b').text('LEY REF. PB:', 410, 116);
+    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#64748b').text(isEstano ? 'LEY REF. SN:' : 'LEY REF. PB:', 410, 116);
     doc.font('Helvetica').fontSize(8.5).fillColor('#0f172a').text(venta.leyReferenciaPb != null ? `${venta.leyReferenciaPb} %` : '—', 475, 116);
 
     // 4. Tabla de Detalle de Lotes Acopiados
@@ -699,12 +735,13 @@ router.get('/:id/pdf', async (req, res, next) => {
         doc.text('Ley Pb', 382, y + 5, { width: 44, align: 'right' });
         doc.text('Prom. Pb', 428, y + 5, { width: 50, align: 'right' });
         doc.text('Costo (Bs)', 480, y + 5, { width: 92, align: 'right' });
-      } else if (isPlomo) {
+      } else if (isPlomo || isEstano) {
+        const elem = isEstano ? 'Sn' : 'Pb';
         doc.text('Lote', 40, y + 5, { width: 55 });
         doc.text('Proveedor', 98, y + 5, { width: 172 });
         doc.text('Peso Bruto (kg)', 272, y + 5, { width: 75, align: 'right' });
-        doc.text('Ley Pb (%)', 350, y + 5, { width: 65, align: 'right' });
-        doc.text('Promedio Pb', 418, y + 5, { width: 70, align: 'right' });
+        doc.text(`Ley ${elem} (%)`, 350, y + 5, { width: 65, align: 'right' });
+        doc.text(`Promedio ${elem}`, 418, y + 5, { width: 70, align: 'right' });
         doc.text('Costo Compra (Bs)', 490, y + 5, { width: 82, align: 'right' });
       } else {
         doc.text('Lote', 40, y + 5, { width: 55 });
@@ -768,7 +805,7 @@ router.get('/:id/pdf', async (req, res, next) => {
         doc.text(det.leyPb != null ? String(det.leyPb) : '—', 382, textY, { width: 44, align: 'right' });
         doc.text(det.promedioPb != null ? Number(det.promedioPb).toLocaleString('es-BO') : '—', 428, textY, { width: 50, align: 'right' });
         doc.text(costoFormatted, 480, textY, { width: 92, align: 'right' });
-      } else if (isPlomo) {
+      } else if (isPlomo || isEstano) {
         doc.text(det.numeroLote, 40, textY, { width: 55, ellipsis: true });
         doc.text(provNombre, 98, textY, { width: 172, ellipsis: true });
         doc.text(pesoFormatted, 272, textY, { width: 75, align: 'right' });
@@ -824,6 +861,9 @@ router.get('/:id/pdf', async (req, res, next) => {
     if (venta.totalPromedioAg) {
       doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#064e3b').text('PROM. AG:', 395, boxY + 24);
       doc.font('Helvetica').fontSize(9.5).fillColor('#0f172a').text(Number(venta.totalPromedioAg).toLocaleString('es-BO'), 448, boxY + 23);
+    } else if (venta.totalPromedioPb) {
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#064e3b').text(isEstano ? 'PROM. SN:' : 'PROM. PB:', 395, boxY + 24);
+      doc.font('Helvetica').fontSize(9.5).fillColor('#0f172a').text(Number(venta.totalPromedioPb).toLocaleString('es-BO'), 448, boxY + 23);
     }
 
     // Fila 2: Insignias de Ley Ponderada
@@ -839,7 +879,7 @@ router.get('/:id/pdf', async (req, res, next) => {
       const pbX = venta.leyPonderadaAg != null ? 265 : 48;
       doc.roundedRect(pbX, boxY + 40, 205, 16, 3).fill('#dcfce7');
       doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#065f46')
-         .text('LEY PONDERADA PB:', pbX + 6, boxY + 43.5);
+         .text(isEstano ? 'LEY PONDERADA SN:' : 'LEY PONDERADA PB:', pbX + 6, boxY + 43.5);
       doc.font('Helvetica-Bold').fontSize(10).fillColor('#047857')
          .text(`${Number(venta.leyPonderadaPb).toFixed(2)} %`, pbX + 115, boxY + 42.5);
     }

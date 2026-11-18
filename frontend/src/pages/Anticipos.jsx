@@ -88,6 +88,21 @@ const Anticipos = () => {
   const [modalExitoOpen, setModalExitoOpen] = useState(false);
   const [anticipoRecienCreado, setAnticipoRecienCreado] = useState(null);
 
+  // Modal Cobro / Liquidación de Deuda en Caja
+  const [modalCobroOpen, setModalCobroOpen] = useState(false);
+  const [cobroTarget, setCobroTarget] = useState(null); // { type: 'PROVEEDOR' | 'VALE', ... }
+  const [montoCobro, setMontoCobro] = useState('');
+  const [fechaCobro, setFechaCobro] = useState(new Date().toISOString().split('T')[0]);
+  const [metodoCobro, setMetodoCobro] = useState('EFECTIVO_CAJA');
+  const [glosaCobro, setGlosaCobro] = useState('Pago en efectivo en caja');
+  const [observacionCobro, setObservacionCobro] = useState('');
+  const [guardandoCobro, setGuardandoCobro] = useState(false);
+
+  // Modal Éxito de Cobro con descarga de recibo
+  const [modalExitoCobroOpen, setModalExitoCobroOpen] = useState(false);
+  const [cobroRecienRegistrado, setCobroRecienRegistrado] = useState(null);
+  const [descargandoReciboCobro, setDescargandoReciboCobro] = useState(false);
+
   const {
     register,
     handleSubmit,
@@ -234,6 +249,113 @@ const Anticipos = () => {
   const handleVerAmortizaciones = (anticipo) => {
     setAnticipoSeleccionado(anticipo);
     setModalAmortizacionesOpen(true);
+  };
+
+  // Abrir modal de cobro para un proveedor (liquidación general FIFO)
+  const abrirModalCobroProveedor = (prov) => {
+    setCobroTarget({
+      type: 'PROVEEDOR',
+      proveedorId: prov.proveedorId,
+      nombreCompleto: prov.nombreCompleto,
+      ci: prov.ci,
+      deudaTotal: prov.saldoPendienteTotal,
+      maxMonto: prov.saldoPendienteTotal,
+      anticipos: prov.anticipos
+    });
+    setMontoCobro(String(prov.saldoPendienteTotal));
+    setFechaCobro(new Date().toISOString().split('T')[0]);
+    setMetodoCobro('EFECTIVO_CAJA');
+    setGlosaCobro(`Liquidación / Amortización de anticipos en caja`);
+    setObservacionCobro('');
+    setModalCobroOpen(true);
+  };
+
+  // Abrir modal de cobro para un vale individual
+  const abrirModalCobroVale = (ant) => {
+    setCobroTarget({
+      type: 'VALE',
+      anticipoId: ant.id,
+      codigoVale: ant.codigoVale,
+      proveedorId: ant.proveedorId || ant.proveedor?.id,
+      nombreCompleto: ant.proveedor?.nombreCompleto || 'Proveedor',
+      ci: ant.proveedor?.ci || '',
+      deudaTotal: ant.saldoPendiente,
+      maxMonto: ant.saldoPendiente
+    });
+    setMontoCobro(String(ant.saldoPendiente));
+    setFechaCobro(new Date().toISOString().split('T')[0]);
+    setMetodoCobro('EFECTIVO_CAJA');
+    setGlosaCobro(`Cobro en caja de ${ant.codigoVale}`);
+    setObservacionCobro('');
+    setModalCobroOpen(true);
+  };
+
+  // Ejecutar el cobro directo en caja
+  const handleConfirmarCobro = async (e) => {
+    e.preventDefault();
+    if (!cobroTarget) return;
+
+    const montoVal = Math.trunc(parseFloat(montoCobro) || 0);
+    if (montoVal <= 0) {
+      setError('El monto a cobrar debe ser mayor a Bs 0');
+      return;
+    }
+    if (montoVal > cobroTarget.maxMonto) {
+      setError(
+        `El monto no puede superar la deuda pendiente de Bs ${cobroTarget.maxMonto.toLocaleString('es-BO')}`
+      );
+      return;
+    }
+
+    try {
+      setGuardandoCobro(true);
+      setError(null);
+
+      const payload = {
+        proveedorId: cobroTarget.proveedorId,
+        anticipoId: cobroTarget.type === 'VALE' ? cobroTarget.anticipoId : undefined,
+        monto: montoVal,
+        fecha: fechaCobro ? `${fechaCobro}T12:00:00.000Z` : undefined,
+        metodoPago: metodoCobro,
+        glosa: glosaCobro.trim() || 'Pago directo en caja',
+        observacion: observacionCobro.trim() || null
+      };
+
+      const res = await anticipoService.amortizarDirecto(payload);
+      setModalCobroOpen(false);
+
+      // Abrir modal de éxito con opción de imprimir recibo
+      setCobroRecienRegistrado(res.resultado);
+      setModalExitoCobroOpen(true);
+
+      showSuccessMsg(res.message);
+      await loadData();
+      if (activeTab === 'HISTORIAL') {
+        await loadHistorial();
+      }
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setGuardandoCobro(false);
+    }
+  };
+
+  // Descargar Recibo de Cobro en PDF
+  const handleDownloadReciboCobroPdf = async (comprobanteNumero) => {
+    try {
+      setDescargandoReciboCobro(true);
+      const res = await anticipoService.downloadReciboCobroPdf(comprobanteNumero);
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `recibo-cobro-${comprobanteNumero}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setDescargandoReciboCobro(false);
+    }
   };
 
   // Proveedores filtrados para la vista de resumen
@@ -524,6 +646,17 @@ const Anticipos = () => {
 
                   {/* Botones de Acción */}
                   <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                    {prov.saldoPendienteTotal > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => abrirModalCobroProveedor(prov)}
+                        className="btn btn-sm bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold inline-flex items-center gap-1 px-3 py-1.5 shadow-xs"
+                        title="Registrar cobro o liquidación directa de deuda en caja"
+                      >
+                        <DollarSign className="h-3.5 w-3.5" />
+                        <span>Cobrar / Liquidar</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => abrirModalNuevoParaProveedor(prov.proveedorId)}
@@ -721,6 +854,18 @@ const Anticipos = () => {
                                 <Printer className="h-3.5 w-3.5" />
                               )}
                             </button>
+
+                            {/* Botón Cobrar Vale en Caja si tiene saldo pendiente */}
+                            {Number(item.saldoPendiente) > 0 && item.estado !== 'ANULADO' && (
+                              <button
+                                type="button"
+                                onClick={() => abrirModalCobroVale(item)}
+                                className="btn btn-sm p-1.5 text-xs text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300"
+                                title="Registrar cobro de este vale en caja"
+                              >
+                                <DollarSign className="h-3.5 w-3.5" />
+                              </button>
+                            )}
 
                             {/* Botón Ver Amortizaciones si tiene descuentos */}
                             {item.descuentos && item.descuentos.length > 0 && (
@@ -983,7 +1128,7 @@ const Anticipos = () => {
 
             <div>
               <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">
-                Historial de Descuentos en Liquidaciones:
+                Historial de Descuentos y Amortizaciones:
               </h4>
 
               {anticipoSeleccionado.descuentos && anticipoSeleccionado.descuentos.length > 0 ? (
@@ -991,22 +1136,47 @@ const Anticipos = () => {
                   {anticipoSeleccionado.descuentos.map((desc, idx) => (
                     <div key={desc.id} className="p-3 bg-white flex items-center justify-between">
                       <div>
-                        <p className="font-bold text-gray-900">
-                          Descuento #{idx + 1} en Lote {desc.calculo?.internacion?.lote || `ID ${desc.calculoId}`}
-                        </p>
-                        <p className="text-[11px] text-gray-500 font-mono">
+                        {desc.calculoId ? (
+                          <p className="font-bold text-gray-900">
+                            Descuento en Liquidación de Lote {desc.calculo?.internacion?.lote || `ID ${desc.calculoId}`}
+                          </p>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <span className="badge bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                              Cobro en Caja
+                            </span>
+                            <span className="font-bold text-emerald-900 font-mono">
+                              {desc.comprobanteNumero || 'Recibo de Caja'}
+                            </span>
+                          </div>
+                        )}
+                        <p className="text-[11px] text-gray-500 font-mono mt-0.5">
                           Fecha: {formatFecha(desc.fecha)}
+                          {desc.glosa ? ` • ${desc.glosa}` : ''}
+                          {desc.usuario?.nombre ? ` • Resp: ${desc.usuario.nombre}` : ''}
                         </p>
                       </div>
-                      <span className="font-mono font-bold text-emerald-700 text-sm">
-                        - {formatBs(desc.montoDescontado)}
-                      </span>
+                      <div className="text-right">
+                        <span className="font-mono font-bold text-emerald-700 text-sm block">
+                          - {formatBs(desc.montoDescontado)}
+                        </span>
+                        {desc.comprobanteNumero && (
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadReciboCobroPdf(desc.comprobanteNumero)}
+                            className="text-[10px] text-emerald-700 hover:text-emerald-900 hover:underline font-semibold inline-flex items-center gap-1 mt-0.5"
+                          >
+                            <Printer className="h-3 w-3" />
+                            <span>Imprimir Recibo</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
               ) : (
                 <p className="text-xs text-gray-500 text-center py-4">
-                  Este anticipo aún no ha tenido amortizaciones en ninguna liquidación.
+                  Este anticipo aún no ha tenido amortizaciones.
                 </p>
               )}
             </div>
@@ -1016,6 +1186,267 @@ const Anticipos = () => {
                 type="button"
                 onClick={() => setModalAmortizacionesOpen(false)}
                 className="btn btn-secondary text-xs"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ======================= MODAL: REGISTRAR COBRO / LIQUIDACIÓN EN CAJA ======================= */}
+      {modalCobroOpen && cobroTarget && (
+        <Modal
+          open={modalCobroOpen}
+          onClose={() => setModalCobroOpen(false)}
+          title={
+            cobroTarget.type === 'VALE'
+              ? `Cobro en Caja — Vale ${cobroTarget.codigoVale}`
+              : `Cobro / Liquidación de Deuda — ${cobroTarget.nombreCompleto}`
+          }
+        >
+          <form onSubmit={handleConfirmarCobro} className="space-y-4">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-900 flex items-start gap-2">
+              <DollarSign className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />
+              <div>
+                <strong>Empresa Minera "AyM" — Ingreso a Caja:</strong> Este cobro amortizará o liquidará
+                directamente la deuda {cobroTarget.type === 'VALE' ? `del vale ${cobroTarget.codigoVale}` : 'del proveedor'} sin necesidad de registrar una internación de mineral.
+                Al confirmar, se emitirá automáticamente el comprobante oficial de caja para el proveedor.
+              </div>
+            </div>
+
+            {/* Resumen Deuda Actual */}
+            <div className="grid grid-cols-2 gap-2 text-xs bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <div>
+                <span className="text-gray-500">Proveedor / Pagador:</span>
+                <p className="font-bold text-gray-900">{cobroTarget.nombreCompleto}</p>
+                <p className="text-[11px] text-gray-500">C.I.: {cobroTarget.ci || 'S/N'}</p>
+              </div>
+              <div className="text-right">
+                <span className="text-gray-500">
+                  {cobroTarget.type === 'VALE' ? 'Saldo Pendiente del Vale:' : 'Deuda Total Pendiente:'}
+                </span>
+                <p className="font-bold font-mono text-emerald-700 text-base">
+                  {formatBs(cobroTarget.maxMonto)}
+                </p>
+              </div>
+            </div>
+
+            {/* Monto y Botones Rápidos */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-gray-700">
+                  Monto Recibido en Caja (Bs) *
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setMontoCobro(String(cobroTarget.maxMonto))}
+                    className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold border border-emerald-300 transition-colors"
+                  >
+                    Pagar Todo ({formatBs(cobroTarget.maxMonto)})
+                  </button>
+                  {cobroTarget.maxMonto >= 2 && (
+                    <button
+                      type="button"
+                      onClick={() => setMontoCobro(String(Math.trunc(cobroTarget.maxMonto / 2)))}
+                      className="text-[10px] px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold border border-gray-300 transition-colors"
+                    >
+                      50% ({formatBs(Math.trunc(cobroTarget.maxMonto / 2))})
+                    </button>
+                  )}
+                </div>
+              </div>
+              <input
+                type="number"
+                step="1"
+                min="1"
+                max={cobroTarget.maxMonto}
+                value={montoCobro}
+                onChange={(e) => setMontoCobro(e.target.value)}
+                required
+                className="input font-mono font-bold text-base w-full border-emerald-400 focus:border-emerald-600"
+                placeholder={`Máx: ${cobroTarget.maxMonto}`}
+              />
+              {/* Cálculo en vivo de saldo restante */}
+              {montoCobro && !isNaN(montoCobro) && (
+                <div className="mt-1 flex items-center justify-between text-[11px] text-gray-600 px-1">
+                  <span>Saldo que quedará debiendo:</span>
+                  <span className="font-mono font-bold text-gray-800">
+                    {formatBs(Math.max(0, cobroTarget.maxMonto - Math.trunc(parseFloat(montoCobro) || 0)))}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Fecha y Método */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Fecha de Cobro *
+                </label>
+                <input
+                  type="date"
+                  value={fechaCobro}
+                  onChange={(e) => setFechaCobro(e.target.value)}
+                  required
+                  className="input text-xs w-full font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Canal / Forma de Pago *
+                </label>
+                <select
+                  value={metodoCobro}
+                  onChange={(e) => setMetodoCobro(e.target.value)}
+                  className="input input-sm text-xs w-full"
+                >
+                  <option value="EFECTIVO_CAJA">💵 Efectivo en Caja / Oficina</option>
+                  <option value="TRANSFERENCIA">🏦 Transferencia Bancaria</option>
+                  <option value="DEPOSITO_QR">📱 Depósito / Pago QR</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Glosa / Motivo */}
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">
+                Motivo / Glosa del Cobro *
+              </label>
+              <input
+                type="text"
+                value={glosaCobro}
+                onChange={(e) => setGlosaCobro(e.target.value)}
+                required
+                placeholder="Ej: Pago directo en oficina por liquidación de saldo..."
+                className="input text-xs w-full"
+              />
+            </div>
+
+            {/* Observaciones */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Observaciones Adicionales (Opcional)
+              </label>
+              <textarea
+                rows="2"
+                value={observacionCobro}
+                onChange={(e) => setObservacionCobro(e.target.value)}
+                placeholder="N° de transacción bancaria, datos de quien entregó el dinero, etc."
+                className="input text-xs w-full"
+              />
+            </div>
+
+            {/* Botones de acción */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setModalCobroOpen(false)}
+                className="btn btn-secondary text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={guardandoCobro}
+                className="btn btn-primary bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-2 px-5 py-2 shadow-sm"
+              >
+                {guardandoCobro ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Registrando Cobro...</span>
+                  </>
+                ) : (
+                  <>
+                    <DollarSign className="h-4 w-4" />
+                    <span>Confirmar Cobro y Emitir Recibo</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ======================= MODAL: ÉXITO DE COBRO Y DESCARGA DE RECIBO ======================= */}
+      {modalExitoCobroOpen && cobroRecienRegistrado && (
+        <Modal
+          open={modalExitoCobroOpen}
+          onClose={() => setModalExitoCobroOpen(false)}
+          title="¡Cobro Registrado Exitosamente!"
+        >
+          <div className="space-y-4 text-center py-2">
+            <div className="mx-auto w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-gray-900">
+                Comprobante {cobroRecienRegistrado.comprobanteNumero} Generado
+              </h3>
+              <p className="text-xs text-gray-600 mt-1">
+                Se registró el ingreso a caja de{' '}
+                <strong className="text-emerald-800 font-mono text-sm">
+                  {formatBs(cobroRecienRegistrado.montoTotalCobrado)}
+                </strong>{' '}
+                a cuenta de{' '}
+                <strong className="text-gray-900">
+                  {cobroRecienRegistrado.proveedor?.nombreCompleto}
+                </strong>
+                .
+              </p>
+            </div>
+
+            {/* Resumen de vales afectados */}
+            {cobroRecienRegistrado.valesAfectados && cobroRecienRegistrado.valesAfectados.length > 0 && (
+              <div className="text-xs text-left bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1.5">
+                <p className="font-bold text-gray-700 text-[11px] uppercase tracking-wider">
+                  Detalle de Amortización:
+                </p>
+                {cobroRecienRegistrado.valesAfectados.map((v) => (
+                  <div key={v.id} className="flex items-center justify-between font-mono text-xs">
+                    <span className="font-semibold text-slate-800">{v.codigoVale}:</span>
+                    <span className="text-emerald-700">Abono {formatBs(v.montoAbonado)}</span>
+                    <span className="text-gray-500">
+                      Saldo restante: {formatBs(v.nuevoSaldo)} ({v.nuevoEstado})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3.5 text-xs text-emerald-900 text-left">
+              <p className="font-semibold flex items-center gap-1.5">
+                <Printer className="h-4 w-4 text-emerald-700" />
+                <span>Recibo Oficial de Caja — Empresa Minera "AyM"</span>
+              </p>
+              <p className="mt-1 text-[11px] text-emerald-800">
+                El comprobante incluye 2 copias por hoja (Original para Contabilidad/Caja y Copia para el Proveedor/Pagador) con las firmas correspondientes.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  handleDownloadReciboCobroPdf(cobroRecienRegistrado.comprobanteNumero);
+                }}
+                disabled={descargandoReciboCobro}
+                className="btn btn-primary bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 shadow-md"
+              >
+                {descargandoReciboCobro ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Printer className="h-4 w-4" />
+                )}
+                <span>🖨️ Imprimir / Descargar Recibo de Caja</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalExitoCobroOpen(false)}
+                className="btn btn-secondary text-xs w-full sm:w-auto"
               >
                 Cerrar
               </button>
